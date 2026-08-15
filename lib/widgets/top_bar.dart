@@ -32,14 +32,17 @@ class TopBar extends StatelessWidget {
         vehicleState.connectionStatus == ConnectionStatus.connecting;
 
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 16, vertical: compact ? 5 : 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 10 : 16,
+        vertical: compact ? 5 : 8,
+      ),
       decoration: const BoxDecoration(
-        color: AppColors.surface,
+        color: AppColors.amberDim,
         border: Border(bottom: BorderSide(color: AppColors.hairline)),
       ),
       child: Row(
         children: [
-          Image.asset('assets/images/logo.png', height: compact ? 18 : 24),
+          Image.asset('assets/images/logo.png', height: compact ? 24 : 24),
           SizedBox(width: compact ? 6 : 10),
           if (!compact || MediaQuery.of(context).size.width > 500)
             Text(
@@ -52,7 +55,11 @@ class TopBar extends StatelessWidget {
               ),
             ),
           const Spacer(),
-          ModeToggle(manual: manualMode, onChanged: onModeChanged, compact: compact),
+          ModeToggle(
+            manual: manualMode,
+            onChanged: onModeChanged,
+            compact: compact,
+          ),
           SizedBox(width: compact ? 10 : 18),
           GestureDetector(
             onTap: onTapConnection,
@@ -66,8 +73,8 @@ class TopBar extends StatelessWidget {
                     color: connected
                         ? AppColors.success
                         : connecting
-                            ? AppColors.amber
-                            : AppColors.danger,
+                        ? AppColors.amber
+                        : AppColors.danger,
                   ),
                 ),
                 SizedBox(width: compact ? 5 : 7),
@@ -76,8 +83,8 @@ class TopBar extends StatelessWidget {
                     connected
                         ? 'Connected'
                         : connecting
-                            ? 'Connecting…'
-                            : 'Disconnected',
+                        ? 'Connecting…'
+                        : 'Disconnected',
                     style: const TextStyle(
                       color: AppColors.textSecondary,
                       fontSize: 13,
@@ -90,7 +97,11 @@ class TopBar extends StatelessWidget {
           SizedBox(width: compact ? 10 : 18),
           // Settings screen isn't built yet — icon is a placeholder anchor
           // point for sensor/radio/profile settings mentioned on the roadmap.
-          Icon(Icons.settings_outlined, color: AppColors.textSecondary, size: compact ? 17 : 20),
+          Icon(
+            Icons.settings_outlined,
+            color: AppColors.textSecondary,
+            size: compact ? 17 : 20,
+          ),
         ],
       ),
     );

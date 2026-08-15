@@ -44,7 +44,8 @@ class _DroneMapViewState extends State<DroneMapView> {
   @override
   void didUpdateWidget(covariant DroneMapView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final moved = oldWidget.latitude != widget.latitude ||
+    final moved =
+        oldWidget.latitude != widget.latitude ||
         oldWidget.longitude != widget.longitude;
     if (_followDrone && widget.hasFix && moved) {
       // Keep the drone centered as new fixes arrive, without fighting the
@@ -126,7 +127,10 @@ class _DroneMapViewState extends State<DroneMapView> {
               top: 12,
               child: Column(
                 children: [
-                  _CompassBadge(headingDegrees: widget.headingDegrees, hasFix: widget.hasFix),
+                  _CompassBadge(
+                    headingDegrees: widget.headingDegrees,
+                    hasFix: widget.hasFix,
+                  ),
                   const SizedBox(height: 8),
                   _RecenterButton(active: _followDrone, onTap: _recenter),
                 ],
@@ -156,7 +160,13 @@ class _HeadingMarker extends StatelessWidget {
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           boxShadow: connected
-              ? [BoxShadow(color: color.withValues(alpha: 0.45), blurRadius: 22, spreadRadius: 2)]
+              ? [
+                  BoxShadow(
+                    color: color.withValues(alpha: 0.45),
+                    blurRadius: 22,
+                    spreadRadius: 2,
+                  ),
+                ]
               : null,
         ),
         child: Icon(Icons.navigation, color: color, size: 34),
@@ -180,7 +190,11 @@ class _CompassBadge extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: AppColors.hairline),
         boxShadow: const [
-          BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 3)),
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 10,
+            offset: Offset(0, 3),
+          ),
         ],
       ),
       child: Stack(
@@ -190,7 +204,11 @@ class _CompassBadge extends StatelessWidget {
             top: 4,
             child: Text(
               'N',
-              style: TextStyle(color: AppColors.textSecondary, fontSize: 9, fontWeight: FontWeight.w700),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: 9,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
           AnimatedRotation(
@@ -256,7 +274,11 @@ class _RecenterButton extends StatelessWidget {
           shape: BoxShape.circle,
           border: Border.all(color: AppColors.hairline),
           boxShadow: const [
-            BoxShadow(color: Colors.black38, blurRadius: 10, offset: Offset(0, 3)),
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 10,
+              offset: Offset(0, 3),
+            ),
           ],
         ),
         child: Icon(Icons.my_location, size: 20, color: color),
