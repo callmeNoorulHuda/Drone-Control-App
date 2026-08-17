@@ -11,7 +11,11 @@ import '../theme/app_theme.dart';
 /// up yet — add them here once SYS_STATUS / home-position tracking exists,
 /// rather than showing placeholder numbers now.
 class TelemetryPanel extends StatelessWidget {
-  const TelemetryPanel({super.key, required this.vehicleState, this.compact = false});
+  const TelemetryPanel({
+    super.key,
+    required this.vehicleState,
+    this.compact = false,
+  });
 
   final VehicleState vehicleState;
   final bool compact;
@@ -23,13 +27,22 @@ class TelemetryPanel extends StatelessWidget {
 
     return Container(
       width: double.infinity,
-      padding: EdgeInsets.fromLTRB(compact ? 10 : 14, compact ? 9 : 12, compact ? 10 : 14, compact ? 9 : 12),
+      padding: EdgeInsets.fromLTRB(
+        compact ? 10 : 14,
+        compact ? 9 : 12,
+        compact ? 10 : 14,
+        compact ? 9 : 12,
+      ),
       decoration: BoxDecoration(
         color: AppColors.surface.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(compact ? 12 : 16),
         border: Border.all(color: AppColors.hairline),
         boxShadow: const [
-          BoxShadow(color: Colors.black38, blurRadius: 16, offset: Offset(0, 6)),
+          BoxShadow(
+            color: Colors.black38,
+            blurRadius: 16,
+            offset: Offset(0, 6),
+          ),
         ],
       ),
       child: Column(
@@ -108,10 +121,16 @@ class _Row extends StatelessWidget {
             child: Text(
               label,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: AppColors.textSecondary, fontSize: compact ? 10.5 : 12),
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: compact ? 10.5 : 12,
+              ),
             ),
           ),
-          Text(value, style: telemetryNumberStyle.copyWith(fontSize: compact ? 11 : 13)),
+          Text(
+            value,
+            style: telemetryNumberStyle.copyWith(fontSize: compact ? 11 : 13),
+          ),
         ],
       ),
     );

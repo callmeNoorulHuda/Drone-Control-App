@@ -6,8 +6,11 @@ import 'mode_toggle.dart';
 
 /// Slim header row: logo + title on the left, Manual/Auto toggle in the
 /// middle, connection status and a settings shortcut on the right.
-/// Height scales down on phones so it doesn't eat into the already-tight
-/// landscape vertical space.
+///
+/// FIXED: the connection indicator used to hide its text label in compact
+/// (phone) mode, leaving only a tiny colored dot with no visible "Connect"
+/// affordance — easy to miss entirely. Now it's always a labeled, filled
+/// pill, so it reads as a real button on every screen size.
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
@@ -31,17 +34,24 @@ class TopBar extends StatelessWidget {
     final connecting =
         vehicleState.connectionStatus == ConnectionStatus.connecting;
 
+    final statusColor = connected
+        ? AppColors.success
+        : connecting
+        ? AppColors.amber
+        : AppColors.danger;
+
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 16,
         vertical: compact ? 5 : 8,
       ),
       decoration: const BoxDecoration(
-        color: AppColors.amberDim,
+        color: AppColors.surface,
         border: Border(bottom: BorderSide(color: AppColors.hairline)),
       ),
       child: Row(
         children: [
+          SizedBox(width: compact ? 10 : 18),
           Image.asset('assets/images/logo.png', height: compact ? 24 : 24),
           SizedBox(width: compact ? 6 : 10),
           if (!compact || MediaQuery.of(context).size.width > 500)
@@ -61,37 +71,46 @@ class TopBar extends StatelessWidget {
             compact: compact,
           ),
           SizedBox(width: compact ? 10 : 18),
+          // Always a filled, labeled pill — never just a bare dot — so it
+          // reads as a tappable button on phone screens too.
           GestureDetector(
             onTap: onTapConnection,
-            child: Row(
-              children: [
-                Container(
-                  width: compact ? 7 : 9,
-                  height: compact ? 7 : 9,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: connected
-                        ? AppColors.success
-                        : connecting
-                        ? AppColors.amber
-                        : AppColors.danger,
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: compact ? 10 : 14,
+                vertical: compact ? 6 : 8,
+              ),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: statusColor.withValues(alpha: 0.55)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: compact ? 7 : 9,
+                    height: compact ? 7 : 9,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: statusColor,
+                    ),
                   ),
-                ),
-                SizedBox(width: compact ? 5 : 7),
-                if (!compact)
+                  SizedBox(width: compact ? 5 : 7),
                   Text(
                     connected
                         ? 'Connected'
                         : connecting
                         ? 'Connecting…'
-                        : 'Disconnected',
-                    style: const TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                        : 'Connect',
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: compact ? 11.5 : 13,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-              ],
+                ],
+              ),
             ),
           ),
           SizedBox(width: compact ? 10 : 18),

@@ -35,6 +35,7 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
   }
 
   void _onLeftStick(Offset v) {
+    print('[Joystick] throttle/yaw: $v');
     _connectionManager.sendManualControl(
       throttle: -v.dy,
       yaw: v.dx,
@@ -44,6 +45,7 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
   }
 
   void _onRightStick(Offset v) {
+    print('[Joystick] throttle/yaw: $v');
     _connectionManager.sendManualControl(
       throttle: 0,
       yaw: 0,

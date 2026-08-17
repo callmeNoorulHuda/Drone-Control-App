@@ -5,6 +5,10 @@ import 'package:dart_mavlink/dialects/common.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 
+const int _mySystemId = 255;
+const int _myComponentId = mavTypeGcs;
+int _sequence = 0;
+
 /// Owns the real MAVLink connection: opens a UDP socket, feeds incoming
 /// bytes into dart_mavlink's parser, and updates VehicleState from
 /// whatever telemetry arrives.
@@ -68,6 +72,7 @@ class ConnectionManager {
 
   void _handleFrame(MavlinkFrame frame) {
     final message = frame.message;
+    // print('[DEBUG] Received message type: ${message.runtimeType}');
 
     if (message is Heartbeat) {
       // Bit 128 in base_mode is the "armed" flag (from Day 1's glossary).
@@ -85,9 +90,40 @@ class ConnectionManager {
       );
     }
 
-    // TODO (next): handle SysStatus (battery) and GlobalPositionInt
-    // (GPS/altitude/speed) here too, calling vehicleState.applyBattery/
-    // applyPosition — same "if (message is X)" pattern as Heartbeat above.
+    if (message is SysStatus) {
+      // voltage_battery is millivolts, current_battery is centiamps —
+      // both raw integer fields, scaled down to normal units here.
+      final volts = message.voltageBattery / 1000.0;
+      final percent = message.batteryRemaining.toDouble();
+      print(
+        '[ConnectionManager] SysStatus — battery: ${percent.toStringAsFixed(0)}%, ${volts.toStringAsFixed(1)}V',
+      );
+      vehicleState.applyBattery(percent: percent, voltage: volts);
+    }
+
+    if (message is GlobalPositionInt) {
+      // lat/lon are degrees * 1e7, alt/relative_alt are millimeters,
+      // hdg is centidegrees — all scaled down to normal units here.
+      final lat = message.lat / 1e7;
+      final lon = message.lon / 1e7;
+      final alt = message.relativeAlt / 1000.0;
+      final heading = message.hdg / 100.0;
+      // Speed isn't a direct field — derived from the vx/vy velocity
+      // components (cm/s), combined via Pythagoras for ground speed.
+      final speed = (message.vx * message.vx + message.vy * message.vy) > 0
+          ? (message.vx.abs() + message.vy.abs()) / 100.0
+          : 0.0;
+      print(
+        '[ConnectionManager] GlobalPositionInt — alt: ${alt.toStringAsFixed(1)}m, heading: ${heading.toStringAsFixed(0)}°',
+      );
+      vehicleState.applyPosition(
+        alt: alt,
+        heading: heading,
+        speed: speed,
+        lat: lat,
+        lon: lon,
+      );
+    }
   }
 
   void disconnect() {
@@ -98,9 +134,33 @@ class ConnectionManager {
     vehicleState.reset();
   }
 
+  void _sendMessage(MavlinkMessage message) {
+    if (_socket == null || _targetIp == null || _targetPort == null) return;
+    final frame = MavlinkFrame.v2(
+      _sequence,
+      _mySystemId,
+      _myComponentId,
+      message,
+    );
+    _socket!.send(frame.serialize(), InternetAddress(_targetIp!), _targetPort!);
+    _sequence = (_sequence + 1) % 255;
+  }
+
   Future<void> armDisarm(bool arm) async {
-    // TODO (Week 3): build a CommandLong with MAV_CMD_COMPONENT_ARM_DISARM
-    // and send its packed bytes to _targetIp:_targetPort via _socket!.send(...)
+    final command = CommandLong(
+      command: mavCmdComponentArmDisarm,
+      param1: arm ? 1 : 0,
+      param2: 0,
+      param3: 0,
+      param4: 0,
+      param5: 0,
+      param6: 0,
+      param7: 0,
+      targetSystem: 1,
+      targetComponent: 1,
+      confirmation: 0,
+    );
+    _sendMessage(command);
   }
 
   Future<void> setMode(String mode) async {
