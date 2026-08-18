@@ -4,7 +4,7 @@ import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
 import 'collapsible_card.dart';
 
-const _availableModes = ['Stabilize', 'Loiter', 'RTL'];
+const _availableModes = ['Stabilize', 'Hover', 'RTL'];
 
 /// Center-bottom panel sitting between the two joysticks: armed state,
 /// the big ARM/DISARM action, and flight-mode selection. Now wrapped in
@@ -152,6 +152,28 @@ class FlightStatusPanel extends StatelessWidget {
                       ),
                     );
                   }).toList(),
+                ),
+                GestureDetector(
+                  onTap: connectionManager.returnToLaunch,
+                  child: Container(
+                    margin: const EdgeInsets.only(top: 8),
+                    width: double.infinity,
+                    padding: EdgeInsets.symmetric(vertical: compact ? 7 : 9),
+                    decoration: BoxDecoration(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(9),
+                      border: Border.all(color: AppColors.cyan),
+                    ),
+                    child: Text(
+                      'RETURN HOME',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: AppColors.cyan,
+                        fontSize: compact ? 11 : 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
                 ),
               ],
             ),

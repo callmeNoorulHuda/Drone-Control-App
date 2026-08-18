@@ -102,6 +102,8 @@ class TopBar extends StatelessWidget {
                         ? 'Connected'
                         : connecting
                         ? 'Connecting…'
+                        : vehicleState.connectionLost
+                        ? 'Connection Lost'
                         : 'Connect',
                     style: TextStyle(
                       color: statusColor,

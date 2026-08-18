@@ -10,7 +10,7 @@ import 'connection_status.dart';
 class VehicleState extends ChangeNotifier {
   ConnectionStatus connectionStatus = ConnectionStatus.disconnected;
   DateTime? lastHeartbeat;
-
+  bool connectionLost = false;
   bool armed = false;
   String currentMode = '--';
 
@@ -22,6 +22,17 @@ class VehicleState extends ChangeNotifier {
   double? speedMps;
   double? latitude;
   double? longitude;
+  String? lastError;
+
+  void setError(String message) {
+    lastError = message;
+    notifyListeners();
+  }
+
+  void clearError() {
+    lastError = null;
+    notifyListeners();
+  }
 
   void setConnectionStatus(ConnectionStatus status) {
     connectionStatus = status;
@@ -32,6 +43,7 @@ class VehicleState extends ChangeNotifier {
     this.armed = armed;
     currentMode = mode;
     lastHeartbeat = DateTime.now();
+    connectionLost = false;
     notifyListeners();
   }
 
@@ -56,6 +68,12 @@ class VehicleState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void markConnectionLost() {
+    connectionStatus = ConnectionStatus.disconnected;
+    connectionLost = true;
+    notifyListeners();
+  }
+
   void reset() {
     connectionStatus = ConnectionStatus.disconnected;
     armed = false;
@@ -67,6 +85,7 @@ class VehicleState extends ChangeNotifier {
     speedMps = null;
     latitude = null;
     longitude = null;
+    connectionLost = false;
     notifyListeners();
   }
 }

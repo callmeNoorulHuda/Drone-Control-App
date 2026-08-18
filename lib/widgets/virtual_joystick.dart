@@ -41,10 +41,15 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
   }
 
   void _release() {
-    if (widget.springBack) {
-      setState(() => _stick = Offset.zero);
-      widget.onChanged?.call(Offset.zero);
-    }
+    // X-axis (left/right = yaw) always snaps back to center, like a real
+    // rudder — even on the throttle stick where springBack is false.
+    // Y-axis (up/down = throttle) only snaps back when springBack is true;
+    // for the throttle stick it holds wherever it was released.
+    final newDx = 0.0;
+    final newDy = widget.springBack ? 0.0 : _stick.dy;
+    final next = Offset(newDx, newDy);
+    setState(() => _stick = next);
+    widget.onChanged?.call(next);
   }
 
   @override
@@ -71,8 +76,16 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
               alignment: Alignment.center,
               children: [
                 // crosshair
-                Container(width: 1, height: widget.size, color: AppColors.hairline),
-                Container(width: widget.size, height: 1, color: AppColors.hairline),
+                Container(
+                  width: 1,
+                  height: widget.size,
+                  color: AppColors.hairline,
+                ),
+                Container(
+                  width: widget.size,
+                  height: 1,
+                  color: AppColors.hairline,
+                ),
                 // stick knob
                 Transform.translate(
                   offset: Offset(_stick.dx * travel, _stick.dy * travel),

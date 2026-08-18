@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../connection/connection_manager.dart';
 import '../state/connection_status.dart';
@@ -23,36 +24,59 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
   late final ConnectionManager _connectionManager = ConnectionManager(
     _vehicleState,
   );
+  String? _lastShownError;
 
   // Manual = joysticks + arm/disarm + flight-mode chips are shown.
   // Auto = those disappear; only map, telemetry, and camera feed remain.
   bool _manualMode = true;
+  Offset _leftStick = Offset.zero;
+  Offset _rightStick = Offset.zero;
+  Timer? _controlTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _vehicleState.addListener(_onVehicleStateChanged);
+    _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
+      if (_vehicleState.connectionStatus == ConnectionStatus.connected) {
+        _connectionManager.sendManualControl(
+          throttle: (-_leftStick.dy).clamp(0.0, 1.0),
+          yaw: _leftStick.dx,
+          pitch: -_rightStick.dy,
+          roll: _rightStick.dx,
+        );
+      }
+    });
+  }
+
+  void _onVehicleStateChanged() {
+    final error = _vehicleState.lastError;
+    if (error != null && error != _lastShownError) {
+      _lastShownError = error;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(error),
+            backgroundColor: AppColors.danger,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      });
+      _vehicleState.clearError();
+    }
+  }
 
   @override
   void dispose() {
+    _vehicleState.removeListener(_onVehicleStateChanged);
+    _controlTimer?.cancel();
     _connectionManager.dispose();
     super.dispose();
   }
 
-  void _onLeftStick(Offset v) {
-    print('[Joystick] throttle/yaw: $v');
-    _connectionManager.sendManualControl(
-      throttle: -v.dy,
-      yaw: v.dx,
-      pitch: 0,
-      roll: 0,
-    );
-  }
-
-  void _onRightStick(Offset v) {
-    print('[Joystick] throttle/yaw: $v');
-    _connectionManager.sendManualControl(
-      throttle: 0,
-      yaw: 0,
-      pitch: -v.dy,
-      roll: v.dx,
-    );
-  }
+  void _onLeftStick(Offset v) => setState(() => _leftStick = v);
+  void _onRightStick(Offset v) => setState(() => _rightStick = v);
 
   void _onTapConnection(bool connected) {
     if (connected) {
