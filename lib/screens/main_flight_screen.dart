@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../connection/connection_manager.dart';
 import '../state/connection_status.dart';
+import '../state/joystick_controller.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/responsive.dart';
@@ -19,7 +21,11 @@ class MainFlightScreen extends StatefulWidget {
   State<MainFlightScreen> createState() => _MainFlightScreenState();
 }
 
-class _MainFlightScreenState extends State<MainFlightScreen> {
+class _MainFlightScreenState extends State<MainFlightScreen>
+    with WidgetsBindingObserver {
+  bool _forceIdleThrottleForArming = false;
+  final JoystickController _leftController = JoystickController();
+  final JoystickController _rightController = JoystickController();
   late final VehicleState _vehicleState = VehicleState();
   late final ConnectionManager _connectionManager = ConnectionManager(
     _vehicleState,
@@ -36,11 +42,16 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _applySystemUISettings();
     _vehicleState.addListener(_onVehicleStateChanged);
     _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
       if (_vehicleState.connectionStatus == ConnectionStatus.connected) {
+        final throttle = _forceIdleThrottleForArming
+            ? 0.0
+            : ((1 - _leftStick.dy) / 2).clamp(0.0, 1.0);
         _connectionManager.sendManualControl(
-          throttle: (-_leftStick.dy).clamp(0.0, 1.0),
+          throttle: throttle,
           yaw: _leftStick.dx,
           pitch: -_rightStick.dy,
           roll: _rightStick.dx,
@@ -48,6 +59,44 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
       }
     });
   }
+
+  Future<void> _applySystemUISettings() async {
+    // this makes the joystick stick in landscape layout
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    // UI can temporarily appear if the user swipes from an edge, but Flutter will hide it again.
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Android kicks the app back out of immersive mode whenever it's
+    // backgrounded and resumed (e.g. the pilot switches apps mid-flight
+    // to check something, then comes back). Re-apply it every time we
+    // come back to the foreground, or the bars silently reappear.
+    if (state == AppLifecycleState.resumed) {
+      SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    }
+  }
+
+  Future<void> _onArmPressed() async {
+    setState(() => _forceIdleThrottleForArming = true);
+    _leftController.moveTo(const Offset(0, 1));
+    await _connectionManager.armDisarm(true);
+
+    // Wait for the heartbeat to confirm armed, with a safety timeout
+    // so a failed/rejected arm doesn't leave throttle stuck at 0 forever.
+    final deadline = DateTime.now().add(const Duration(seconds: 3));
+    while (!_vehicleState.armed && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 100));
+    }
+
+    if (mounted) setState(() => _forceIdleThrottleForArming = false);
+  }
+
+  String? _lastMode;
 
   void _onVehicleStateChanged() {
     final error = _vehicleState.lastError;
@@ -65,6 +114,14 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
       });
       _vehicleState.clearError();
     }
+    if (_vehicleState.currentMode != _lastMode) {
+      final previousMode = _lastMode;
+      _lastMode = _vehicleState.currentMode;
+      if (previousMode != null && _lastMode != 'Stabilize') {
+        _leftController.center();
+        _rightController.center();
+      }
+    }
   }
 
   @override
@@ -72,6 +129,8 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
     _vehicleState.removeListener(_onVehicleStateChanged);
     _controlTimer?.cancel();
     _connectionManager.dispose();
+    _applySystemUISettings();
+    WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
@@ -151,6 +210,7 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
                                         springBack: false,
                                         onChanged: _onLeftStick,
                                         vehicleState: _vehicleState,
+                                        controller: _leftController,
                                       ),
                                     ),
                                   ),
@@ -180,6 +240,7 @@ class _MainFlightScreenState extends State<MainFlightScreen> {
                                         size: joystickSize,
                                         onChanged: _onRightStick,
                                         vehicleState: _vehicleState,
+                                        controller: _rightController,
                                       ),
                                     ),
                                   ),

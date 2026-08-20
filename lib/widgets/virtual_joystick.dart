@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../state/joystick_controller.dart';
 import '../theme/app_theme.dart';
 import 'package:drone_control/state/vehicle_state.dart';
 import 'package:drone_control/state/connection_status.dart';
@@ -9,13 +10,15 @@ import 'package:drone_control/state/connection_status.dart';
 /// stick that should hold its position, e.g. if you want that behavior).
 class VirtualJoystick extends StatefulWidget {
   final VehicleState vehicleState;
+  final JoystickController? controller;
   const VirtualJoystick({
     super.key,
     required this.label,
-    this.size = 150,
+    this.size = 200,
     this.springBack = true,
     this.onChanged,
     required this.vehicleState,
+    this.controller,
   });
 
   final String label;
@@ -32,6 +35,12 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
   void initState() {
     super.initState();
     widget.vehicleState.addListener(_onVehicleStateChanged);
+    widget.controller?.addListener(_onControllerMoved);
+  }
+
+  void _onControllerMoved() {
+    setState(() => _stick = widget.controller!.target);
+    widget.onChanged?.call(_stick);
   }
 
   void _onVehicleStateChanged() {
@@ -75,6 +84,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
   @override
   void dispose() {
     widget.vehicleState.removeListener(_onVehicleStateChanged);
+    widget.controller?.removeListener(_onControllerMoved);
     super.dispose();
   }
 

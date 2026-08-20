@@ -13,26 +13,28 @@ class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 900),
+    duration: const Duration(milliseconds: 1000),
   )..forward();
 
-  late final Animation<double> _fade =
-      CurvedAnimation(parent: _controller, curve: Curves.easeOut);
-  late final Animation<double> _scale = Tween<double>(begin: 0.85, end: 1.0)
-      .animate(CurvedAnimation(parent: _controller, curve: Curves.easeOutBack));
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _controller,
+    curve: Curves.easeOut,
+  );
+  late final Animation<double> _scale = Tween<double>(
+    begin: 0.80,
+    end: 1.0,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
 
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 2200), () {
+    Future.delayed(const Duration(milliseconds: 3000), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           transitionDuration: const Duration(milliseconds: 500),
-          pageBuilder: (_, anim, __) => FadeTransition(
-            opacity: anim,
-            child: const MainFlightScreen(),
-          ),
+          pageBuilder: (_, anim, __) =>
+              FadeTransition(opacity: anim, child: const MainFlightScreen()),
         ),
       );
     });
@@ -56,19 +58,16 @@ class _SplashScreenState extends State<SplashScreen>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Image.asset(
-                  'assets/images/logo.png',
-                  width: 220,
-                ),
+                Image.asset('assets/images/logo.png', width: 220),
                 const SizedBox(height: 28),
-                const SizedBox(
-                  width: 26,
-                  height: 26,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.4,
-                    color: AppColors.amber,
-                  ),
-                ),
+                // const SizedBox(
+                //   width: 26,
+                //   height: 26,
+                //   child: CircularProgressIndicator(
+                //     strokeWidth: 2.4,
+                //     color: AppColors.amber,
+                //   ),
+                // ),
               ],
             ),
           ),

@@ -10,7 +10,11 @@ import '../theme/app_theme.dart';
 /// + a companion streaming server if you go the WebRTC/HLS route. Ask me
 /// when you get there and I'll wire whichever fits your video source.
 class CameraFeedPanel extends StatelessWidget {
-  const CameraFeedPanel({super.key, required this.connected, this.compact = false});
+  const CameraFeedPanel({
+    super.key,
+    required this.connected,
+    this.compact = false,
+  });
 
   final bool connected;
   final bool compact;
@@ -42,7 +46,9 @@ class CameraFeedPanel extends StatelessWidget {
               ),
               Center(
                 child: Icon(
-                  connected ? Icons.videocam_outlined : Icons.videocam_off_outlined,
+                  connected
+                      ? Icons.videocam_outlined
+                      : Icons.videocam_off_outlined,
                   size: compact ? 20 : 28,
                   color: AppColors.textSecondary,
                 ),
@@ -52,7 +58,10 @@ class CameraFeedPanel extends StatelessWidget {
                   top: compact ? 6 : 8,
                   left: compact ? 6 : 8,
                   child: Container(
-                    padding: EdgeInsets.symmetric(horizontal: compact ? 5 : 6, vertical: 2),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: compact ? 5 : 6,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.danger,
                       borderRadius: BorderRadius.circular(4),

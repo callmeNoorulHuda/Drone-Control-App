@@ -40,25 +40,27 @@ class TelemetryPanel extends StatelessWidget {
         boxShadow: const [
           BoxShadow(
             color: Colors.black38,
-            blurRadius: 16,
-            offset: Offset(0, 6),
+            blurRadius: 10,
+            offset: Offset(0, 10),
           ),
         ],
       ),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.max,
         children: [
-          Text(
-            'TELEMETRY',
-            style: TextStyle(
-              color: AppColors.textSecondary,
-              fontSize: compact ? 9.5 : 11,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 1.1,
+          Center(
+            child: Text(
+              'TELEMETRY',
+              style: TextStyle(
+                color: AppColors.textSecondary,
+                fontSize: compact ? 15 : 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.1,
+              ),
             ),
           ),
-          SizedBox(height: compact ? 7 : 10),
+          SizedBox(height: compact ? 10 : 20),
           _Row(
             icon: Icons.battery_full,
             label: 'Battery',
@@ -67,6 +69,7 @@ class TelemetryPanel extends StatelessWidget {
                 : '--',
             compact: compact,
           ),
+          SizedBox(height: compact ? 10 : 20),
           _Row(
             icon: Icons.height,
             label: 'Altitude',
@@ -75,6 +78,7 @@ class TelemetryPanel extends StatelessWidget {
                 : '--',
             compact: compact,
           ),
+          SizedBox(height: compact ? 10 : 20),
           _Row(
             icon: Icons.speed,
             label: 'Speed',
@@ -83,6 +87,7 @@ class TelemetryPanel extends StatelessWidget {
                 : '--',
             compact: compact,
           ),
+          SizedBox(height: compact ? 10 : 20),
           _Row(
             icon: Icons.explore,
             label: 'Heading',
@@ -115,7 +120,7 @@ class _Row extends StatelessWidget {
       padding: EdgeInsets.only(bottom: compact ? 5 : 8),
       child: Row(
         children: [
-          Icon(icon, size: compact ? 12 : 14, color: AppColors.textSecondary),
+          Icon(icon, size: compact ? 15 : 18, color: AppColors.textSecondary),
           SizedBox(width: compact ? 5 : 6),
           Expanded(
             child: Text(
@@ -123,13 +128,13 @@ class _Row extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: AppColors.textSecondary,
-                fontSize: compact ? 10.5 : 12,
+                fontSize: compact ? 12 : 15,
               ),
             ),
           ),
           Text(
             value,
-            style: telemetryNumberStyle.copyWith(fontSize: compact ? 11 : 13),
+            style: telemetryNumberStyle.copyWith(fontSize: compact ? 13 : 16),
           ),
         ],
       ),
