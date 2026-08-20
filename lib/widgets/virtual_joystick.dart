@@ -1,17 +1,21 @@
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
+import 'package:drone_control/state/vehicle_state.dart';
+import 'package:drone_control/state/connection_status.dart';
 
 /// A draggable virtual joystick. Reports normalized values in [-1, 1] for
 /// both axes via [onChanged], and resets to center on release (matching a
 /// spring-centered gimbal — pass [springBack: false] for a throttle-style
 /// stick that should hold its position, e.g. if you want that behavior).
 class VirtualJoystick extends StatefulWidget {
+  final VehicleState vehicleState;
   const VirtualJoystick({
     super.key,
     required this.label,
     this.size = 150,
     this.springBack = true,
     this.onChanged,
+    required this.vehicleState,
   });
 
   final String label;
@@ -24,6 +28,22 @@ class VirtualJoystick extends StatefulWidget {
 }
 
 class _VirtualJoystickState extends State<VirtualJoystick> {
+  @override
+  void initState() {
+    super.initState();
+    widget.vehicleState.addListener(_onVehicleStateChanged);
+  }
+
+  void _onVehicleStateChanged() {
+    if (widget.vehicleState.connectionStatus != ConnectionStatus.connected) {
+      setState(() {
+        _stick = Offset.zero;
+      });
+
+      widget.onChanged?.call(Offset.zero);
+    }
+  }
+
   Offset _stick = Offset.zero; // normalized, -1..1 on each axis
 
   double get _knobSize => (widget.size * 0.29).clamp(32, 44);
@@ -50,6 +70,12 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     final next = Offset(newDx, newDy);
     setState(() => _stick = next);
     widget.onChanged?.call(next);
+  }
+
+  @override
+  void dispose() {
+    widget.vehicleState.removeListener(_onVehicleStateChanged);
+    super.dispose();
   }
 
   @override
