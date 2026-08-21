@@ -34,6 +34,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   late final ConnectionManager _connectionManager;
 
   String? _lastShownError;
+  bool _timedOutDialogShown = false;
 
   // Manual = joysticks + arm/disarm + flight-mode chips are shown.
   // Auto = those disappear; only map, telemetry, and camera feed remain.
@@ -128,6 +129,52 @@ class _MainFlightScreenState extends State<MainFlightScreen>
       });
       _vehicleState.clearError();
     }
+    if (_vehicleState.connectionStatus == ConnectionStatus.timedOut) {
+      if (!_timedOutDialogShown) {
+        _timedOutDialogShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppColors.hairline),
+              ),
+              title: const Text(
+                'Could not find device',
+                style: TextStyle(
+                  color: AppColors.amber,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: const Text(
+                'No response after 10 seconds. Please make sure your drone/SITL is powered on and reachable, then try again.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      color: AppColors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      }
+    } else {
+      // Reset so the dialog can show again on the next timeout
+      _timedOutDialogShown = false;
+    }
+
     if (_vehicleState.currentMode != _lastMode) {
       final previousMode = _lastMode;
       _lastMode = _vehicleState.currentMode;

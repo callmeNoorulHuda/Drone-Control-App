@@ -40,7 +40,6 @@ class VirtualJoystick extends StatefulWidget {
 class _VirtualJoystickState extends State<VirtualJoystick> {
   Offset _stick = Offset.zero; // normalized, -1..1 on each axis
 
-  // Bigger knob: was 0.29 * size clamped to 32-44, now 0.34 clamped to 40-56.
   double get _knobSize => (widget.size * 0.30).clamp(40, 56);
 
   @override

@@ -35,6 +35,8 @@ class ConnectionManager {
   // only listens, it doesn't transmit anything yet.
   String? _targetIp;
   int? _targetPort;
+  Timer? _connectTimeoutTimer;
+  static const _connectTimeout = Duration(seconds: 10);
 
   static const _heartbeatTimeout = Duration(seconds: 4);
 
@@ -44,15 +46,19 @@ class ConnectionManager {
     _targetPort = port;
 
     vehicleState.setConnectionStatus(ConnectionStatus.connecting);
+    _connectTimeoutTimer = Timer(_connectTimeout, () {
+      if (vehicleState.connectionStatus == ConnectionStatus.connecting) {
+        vehicleState.setConnectionStatus(ConnectionStatus.timedOut);
+      }
+    });
 
     // The "dialect" is the vocabulary of message types we know how to
-    // decode — the base common.xml set from Monday's reading.
+    // decode — the base common.xml set of MAVLink messages.
     final dialect = MavlinkDialectCommon();
     _parser = MavlinkParser(dialect);
 
     // Every time the parser finishes decoding one full, valid message, it
-    // announces it here. We only act on Heartbeat for now — SYS_STATUS
-    // and GLOBAL_POSITION_INT handling get added the same way, next.
+    // announces it here. We only act on Heartbeat for now.
     _parserSubscription = _parser!.stream.listen(_handleFrame);
 
     // Claim this port on this machine, before any data has arrived yet —
@@ -93,7 +99,7 @@ class ConnectionManager {
 
   static const Map<int, String> _ardupilotModeNames = {
     0: 'Stabilize',
-    5: 'Loiter',
+    5: 'Hover',
     6: 'RTL',
   };
 
@@ -112,12 +118,13 @@ class ConnectionManager {
     if (message is Heartbeat) {
       if (vehicleState.connectionStatus != ConnectionStatus.connected) {
         vehicleState.setConnectionStatus(ConnectionStatus.connected);
+        _connectTimeoutTimer?.cancel();
       }
       // Bit 12mo8 in base_mode is the "armed" flag (from Day 1's glossary).
       final armed = (message.baseMode & 128) != 0;
       // customMode is just a raw number here — turning it into a readable
       // name like "Stabilize"/"Loiter" needs ArduPilot's mode-number
-      // lookup table, which is still TODO. Showing the raw number for now
+      // lookup table, which is still
       // is enough to prove real data is flowing correctly.
       final modeName =
           _ardupilotModeNames[message.customMode] ??
@@ -168,6 +175,7 @@ class ConnectionManager {
     _parser = null;
     _heartbeatTimeoutTimer?.cancel();
     vehicleState.reset();
+    _connectTimeoutTimer?.cancel();
   }
 
   void _sendMessage(MavlinkMessage message) {
@@ -204,7 +212,7 @@ class ConnectionManager {
 
   static const Map<String, int> _ardupilotModeNumbers = {
     'Stabilize': 0,
-    'Loiter': 5,
+    'Hover': 5,
     'RTL': 6,
   };
 
@@ -271,5 +279,6 @@ class ConnectionManager {
     _parserSubscription?.cancel();
     _socket?.close();
     _heartbeatTimer?.cancel();
+    _connectTimeoutTimer?.cancel();
   }
 }

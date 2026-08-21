@@ -4,10 +4,8 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_switcher/flutter_map_tile_switcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart' as ll;
+import '../state/marker_style.dart';
 import '../theme/app_theme.dart';
-
-// Pointer style options the user can pick in Settings.
-enum MarkerStyle { drone, airplane, simple }
 
 class DroneMapView extends StatefulWidget {
   const DroneMapView({
