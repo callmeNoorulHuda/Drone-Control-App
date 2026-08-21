@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -14,14 +15,13 @@ import 'mode_toggle.dart';
 class TopBar extends StatelessWidget {
   const TopBar({
     super.key,
-    required this.vehicleState,
     required this.onTapConnection,
     required this.manualMode,
     required this.onModeChanged,
     this.compact = false,
   });
 
-  final VehicleState vehicleState;
+  // vehicleState field removed — fetched via context.watch below instead.
   final VoidCallback onTapConnection;
   final bool manualMode;
   final ValueChanged<bool> onModeChanged;
@@ -29,6 +29,11 @@ class TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Reads VehicleState from Provider and subscribes this widget to
+    // rebuild whenever it changes — same effect as the old constructor
+    // param, just sourced from the tree instead of passed in.
+    final vehicleState = context.watch<VehicleState>();
+
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
     final connecting =

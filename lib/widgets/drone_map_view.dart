@@ -1,20 +1,14 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:flutter_map_tile_switcher/flutter_map_tile_switcher.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import '../theme/app_theme.dart';
 
-/// Live GPS map: shows the drone's real position on real map tiles, with a
-/// heading-rotated marker. Replaces the earlier radar-style placeholder now
-/// that VehicleState carries real lat/lon from GLOBAL_POSITION_INT.
-///
-/// Uses CARTO's free "dark matter" tiles (OSM data, dark-themed) so the map
-/// sits naturally in the navy UI instead of a bright default basemap.
-///
-/// Deferred on purpose (not in this widget yet):
-///   - flight path trail (polyline of recent fixes)
-///   - waypoint / mission overlay
-///   - detailed "why no GPS fix" reasons — this just shows a generic banner
+// Pointer style options the user can pick in Settings.
+enum MarkerStyle { drone, airplane, simple }
+
 class DroneMapView extends StatefulWidget {
   const DroneMapView({
     super.key,
@@ -23,6 +17,8 @@ class DroneMapView extends StatefulWidget {
     required this.headingDegrees,
     required this.connected,
     required this.hasFix,
+    this.isDarkMode = false,
+    this.markerStyle = MarkerStyle.drone,
   });
 
   final double latitude;
@@ -30,6 +26,8 @@ class DroneMapView extends StatefulWidget {
   final double headingDegrees;
   final bool connected;
   final bool hasFix;
+  final bool isDarkMode;
+  final MarkerStyle markerStyle;
 
   @override
   State<DroneMapView> createState() => _DroneMapViewState();
@@ -48,8 +46,6 @@ class _DroneMapViewState extends State<DroneMapView> {
         oldWidget.latitude != widget.latitude ||
         oldWidget.longitude != widget.longitude;
     if (_followDrone && widget.hasFix && moved) {
-      // Keep the drone centered as new fixes arrive, without fighting the
-      // user if they've manually panned away (see onPositionChanged below).
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _mapController.move(_point, _mapController.camera.zoom);
       });
@@ -66,7 +62,7 @@ class _DroneMapViewState extends State<DroneMapView> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(20),
       child: Container(
-        color: AppColors.surface,
+        color: widget.isDarkMode ? AppColors.surface : Colors.white,
         child: Stack(
           children: [
             FlutterMap(
@@ -80,20 +76,21 @@ class _DroneMapViewState extends State<DroneMapView> {
                   flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
                 ),
                 onPositionChanged: (position, hasGesture) {
-                  // A manual pan/pinch breaks auto-follow until the pilot
-                  // taps the recenter button again.
                   if (hasGesture && _followDrone) {
                     setState(() => _followDrone = false);
                   }
                 },
               ),
               children: [
-                TileLayer(
-                  urlTemplate:
-                      'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-                  subdomains: const ['a', 'b', 'c', 'd'],
+                // This one widget replaces your old TileLayer entirely.
+                // mapType stays osm (free CartoDB tiles, no API key, safe
+                // for Play Store). isDarkMode is passed explicitly instead
+                // of relying on auto-detection from Theme.of(context), so
+                // it stays in sync with your own app-level toggle.
+                MapTileLayer(
+                  mapType: MapTileType.osm,
+                  isDarkMode: widget.isDarkMode,
                   userAgentPackageName: 'com.safesky.drone_control',
-                  maxZoom: 19,
                 ),
                 if (widget.hasFix)
                   MarkerLayer(
@@ -102,9 +99,11 @@ class _DroneMapViewState extends State<DroneMapView> {
                         point: _point,
                         width: 60,
                         height: 60,
-                        child: _HeadingMarker(
+                        child: _PositionMarker(
                           headingDegrees: widget.headingDegrees,
                           connected: widget.connected,
+                          isDarkMode: widget.isDarkMode,
+                          style: widget.markerStyle,
                         ),
                       ),
                     ],
@@ -112,16 +111,14 @@ class _DroneMapViewState extends State<DroneMapView> {
                 RichAttributionWidget(
                   alignment: AttributionAlignment.bottomLeft,
                   popupInitialDisplayDuration: const Duration(seconds: 3),
-                  attributions: [
+                  attributions: const [
                     TextSourceAttribution('OpenStreetMap contributors'),
                     TextSourceAttribution('CARTO'),
                   ],
                 ),
               ],
             ),
-            if (!widget.hasFix) const _NoFixBanner(),
-            // Left-side control column (compass + recenter), mirroring the
-            // reference layout's icon stack on the map's left edge.
+            if (!widget.hasFix) _NoFixBanner(isDarkMode: widget.isDarkMode),
             Positioned(
               left: 12,
               top: 12,
@@ -130,9 +127,14 @@ class _DroneMapViewState extends State<DroneMapView> {
                   _CompassBadge(
                     headingDegrees: widget.headingDegrees,
                     hasFix: widget.hasFix,
+                    isDarkMode: widget.isDarkMode,
                   ),
                   const SizedBox(height: 8),
-                  _RecenterButton(active: _followDrone, onTap: _recenter),
+                  _RecenterButton(
+                    active: _followDrone,
+                    onTap: _recenter,
+                    isDarkMode: widget.isDarkMode,
+                  ),
                 ],
               ),
             ),
@@ -143,14 +145,45 @@ class _DroneMapViewState extends State<DroneMapView> {
   }
 }
 
-class _HeadingMarker extends StatelessWidget {
-  const _HeadingMarker({required this.headingDegrees, required this.connected});
+// Single marker widget that renders differently per MarkerStyle.
+// This is the switch-expression pattern: one widget reads an enum and
+// branches on it to decide what to draw. Add a new enum value + a new
+// case here whenever you want another pointer option in Settings.
+class _PositionMarker extends StatelessWidget {
+  const _PositionMarker({
+    required this.headingDegrees,
+    required this.connected,
+    required this.isDarkMode,
+    required this.style,
+  });
+
   final double headingDegrees;
   final bool connected;
+  final bool isDarkMode;
+  final MarkerStyle style;
 
   @override
   Widget build(BuildContext context) {
-    final color = connected ? AppColors.amber : AppColors.textSecondary;
+    final color = connected
+        ? AppColors.amber
+        : (isDarkMode ? AppColors.textSecondary : Colors.black45);
+
+    final Widget iconWidget = switch (style) {
+      MarkerStyle.drone => SvgPicture.asset(
+        'assets/icons/drone_marker.svg',
+        width: 32,
+        height: 32,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
+      MarkerStyle.airplane => SvgPicture.asset(
+        'assets/icons/airplane_marker.svg',
+        width: 32,
+        height: 32,
+        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+      ),
+      MarkerStyle.simple => Icon(Icons.navigation, color: color, size: 34),
+    };
+
     return AnimatedRotation(
       turns: headingDegrees / 360,
       duration: const Duration(milliseconds: 400),
@@ -169,26 +202,36 @@ class _HeadingMarker extends StatelessWidget {
                 ]
               : null,
         ),
-        child: Icon(Icons.navigation, color: color, size: 34),
+        child: iconWidget,
       ),
     );
   }
 }
 
 class _CompassBadge extends StatelessWidget {
-  const _CompassBadge({required this.headingDegrees, required this.hasFix});
+  const _CompassBadge({
+    required this.headingDegrees,
+    required this.hasFix,
+    required this.isDarkMode,
+  });
+
   final double headingDegrees;
   final bool hasFix;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
+    final bg = isDarkMode ? AppColors.surface : Colors.white;
+    final border = isDarkMode ? AppColors.hairline : Colors.black12;
+    final textColor = isDarkMode ? AppColors.textSecondary : Colors.black54;
+
     return Container(
       width: 40,
       height: 40,
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.92),
+        color: bg.withValues(alpha: 0.92),
         shape: BoxShape.circle,
-        border: Border.all(color: AppColors.hairline),
+        border: Border.all(color: border),
         boxShadow: const [
           BoxShadow(
             color: Colors.black38,
@@ -200,25 +243,29 @@ class _CompassBadge extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          const Positioned(
+          Positioned(
             top: 4,
             child: Text(
               'N',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: textColor,
                 fontSize: 9,
                 fontWeight: FontWeight.w700,
               ),
             ),
           ),
-          AnimatedRotation(
-            turns: hasFix ? headingDegrees / 360 : 0,
-            duration: const Duration(milliseconds: 400),
-            curve: Curves.easeOut,
-            child: Icon(
-              Icons.navigation,
-              size: 18,
-              color: hasFix ? AppColors.amber : AppColors.textSecondary,
+
+          Positioned(
+            top: 15,
+            child: AnimatedRotation(
+              turns: hasFix ? headingDegrees / 360 : 0,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOut,
+              child: Icon(
+                Icons.navigation,
+                size: 18,
+                color: hasFix ? AppColors.amber : textColor,
+              ),
             ),
           ),
         ],
@@ -228,10 +275,14 @@ class _CompassBadge extends StatelessWidget {
 }
 
 class _NoFixBanner extends StatelessWidget {
-  const _NoFixBanner();
+  const _NoFixBanner({required this.isDarkMode});
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
+    final bg = isDarkMode ? AppColors.bg : Colors.white;
+    final textColor = isDarkMode ? AppColors.textSecondary : Colors.black54;
+
     return Positioned(
       top: 0,
       left: 0,
@@ -239,12 +290,12 @@ class _NoFixBanner extends StatelessWidget {
       child: IgnorePointer(
         child: Container(
           padding: const EdgeInsets.symmetric(vertical: 8),
-          color: AppColors.bg.withValues(alpha: 0.85),
-          child: const Center(
+          color: bg.withValues(alpha: 0.85),
+          child: Center(
             child: Text(
               'NO GPS FIX — waiting for satellites',
               style: TextStyle(
-                color: AppColors.textSecondary,
+                color: textColor,
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
@@ -258,21 +309,31 @@ class _NoFixBanner extends StatelessWidget {
 }
 
 class _RecenterButton extends StatelessWidget {
-  const _RecenterButton({required this.active, required this.onTap});
+  const _RecenterButton({
+    required this.active,
+    required this.onTap,
+    required this.isDarkMode,
+  });
+
   final bool active;
   final VoidCallback onTap;
+  final bool isDarkMode;
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.amber : AppColors.textSecondary;
+    final inactiveColor = isDarkMode ? AppColors.textSecondary : Colors.black54;
+    final color = active ? AppColors.amber : inactiveColor;
+    final bg = isDarkMode ? AppColors.surface : Colors.white;
+    final border = isDarkMode ? AppColors.hairline : Colors.black12;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: AppColors.surface.withValues(alpha: 0.92),
+          color: bg.withValues(alpha: 0.92),
           shape: BoxShape.circle,
-          border: Border.all(color: AppColors.hairline),
+          border: Border.all(color: border),
           boxShadow: const [
             BoxShadow(
               color: Colors.black38,

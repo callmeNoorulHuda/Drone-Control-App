@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -11,17 +12,14 @@ import '../theme/app_theme.dart';
 /// up yet — add them here once SYS_STATUS / home-position tracking exists,
 /// rather than showing placeholder numbers now.
 class TelemetryPanel extends StatelessWidget {
-  const TelemetryPanel({
-    super.key,
-    required this.vehicleState,
-    this.compact = false,
-  });
+  const TelemetryPanel({super.key, this.compact = false});
 
-  final VehicleState vehicleState;
+  // vehicleState field removed — fetched via context.watch below instead.
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    final vehicleState = context.watch<VehicleState>();
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../connection/connection_manager.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -13,14 +14,14 @@ const _availableModes = ['Stabilize', 'Hover', 'RTL'];
 class FlightStatusPanel extends StatelessWidget {
   const FlightStatusPanel({
     super.key,
-    required this.vehicleState,
-    required this.connectionManager,
     required this.enabled,
     this.compact = false,
   });
 
-  final VehicleState vehicleState;
-  final ConnectionManager connectionManager;
+  // vehicleState and connectionManager params removed — both now read
+  // from Provider instead (watch for vehicleState since it drives
+  // rendering, read for connectionManager since it's only ever called
+  // from inside button callbacks, never used to build UI directly).
   final bool enabled;
   final bool compact;
 
@@ -50,11 +51,18 @@ class FlightStatusPanel extends StatelessWidget {
         ],
       ),
     );
-    if (confirmed == true) connectionManager.armDisarm(arm);
+    if (confirmed == true) {
+      // read() here too — this runs inside a callback (after the dialog
+      // closes), not during build(), so no subscription is needed.
+      context.read<ConnectionManager>().armDisarm(arm);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final vehicleState = context.watch<VehicleState>();
+    final connectionManager = context.read<ConnectionManager>();
+
     return Opacity(
       opacity: enabled ? 1 : 0.4,
       child: IgnorePointer(

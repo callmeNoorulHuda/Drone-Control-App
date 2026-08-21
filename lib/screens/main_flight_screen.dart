@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 import '../connection/connection_manager.dart';
 import '../state/connection_status.dart';
 import '../state/joystick_controller.dart';
@@ -26,10 +27,12 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   bool _forceIdleThrottleForArming = false;
   final JoystickController _leftController = JoystickController();
   final JoystickController _rightController = JoystickController();
-  late final VehicleState _vehicleState = VehicleState();
-  late final ConnectionManager _connectionManager = ConnectionManager(
-    _vehicleState,
-  );
+
+  // No longer created here — sourced from Provider (see main.dart), since
+  // they now live for the whole app's lifetime, not just this screen's.
+  late final VehicleState _vehicleState;
+  late final ConnectionManager _connectionManager;
+
   String? _lastShownError;
 
   // Manual = joysticks + arm/disarm + flight-mode chips are shown.
@@ -42,9 +45,20 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   @override
   void initState() {
     super.initState();
+    // context.read is safe here: we're not registering a rebuild
+    // dependency, just fetching the instances once when this screen is
+    // first created.
+    _vehicleState = context.read<VehicleState>();
+    _connectionManager = context.read<ConnectionManager>();
+
     WidgetsBinding.instance.addObserver(this);
     _applySystemUISettings();
+
+    // KEPT as addListener on purpose — this drives one-shot side effects
+    // (showing a snackbar, centering joysticks), not UI rebuilding. See
+    // the note in build() for the part that WAS converted to watch().
     _vehicleState.addListener(_onVehicleStateChanged);
+
     _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
       if (_vehicleState.connectionStatus == ConnectionStatus.connected) {
         final throttle = _forceIdleThrottleForArming
@@ -128,7 +142,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   void dispose() {
     _vehicleState.removeListener(_onVehicleStateChanged);
     _controlTimer?.cancel();
-    _connectionManager.dispose();
+    // _connectionManager.dispose() is NOT called here anymore — main.dart
+    // owns that object now, so main.dart is responsible for disposing it.
     _applySystemUISettings();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -147,141 +162,131 @@ class _MainFlightScreenState extends State<MainFlightScreen>
 
   @override
   Widget build(BuildContext context) {
+    // CONVERTED from ListenableBuilder(listenable: _vehicleState, ...) to
+    // context.watch — this subscribes the whole build() to VehicleState
+    // and reruns it automatically on notifyListeners(), same effect as
+    // the old ListenableBuilder wrapper, one less nested widget.
+    final vehicleState = context.watch<VehicleState>();
+
+    final connected =
+        vehicleState.connectionStatus == ConnectionStatus.connected;
+    final hasFix =
+        vehicleState.latitude != null && vehicleState.longitude != null;
+
+    // One breakpoint drives every size in this screen — phone gets
+    // tighter panels/joysticks/fonts, tablet gets the fuller sizing.
+    // Layout shape (map left, side panel right) stays the same on
+    // both; only the numbers scale, per Noor's request.
+    final tablet = isTabletLayout(context);
+    final gap = tablet ? 12.0 : 0.0;
+    final sidePanelWidth = tablet ? 260.0 : 128.0;
+    final joystickSize = tablet ? 150.0 : 104.0;
+    final edgeInset = tablet ? 20.0 : 10.0;
+
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: ListenableBuilder(
-        listenable: _vehicleState,
-        builder: (context, _) {
-          final connected =
-              _vehicleState.connectionStatus == ConnectionStatus.connected;
-          final hasFix =
-              _vehicleState.latitude != null && _vehicleState.longitude != null;
-
-          // One breakpoint drives every size in this screen — phone gets
-          // tighter panels/joysticks/fonts, tablet gets the fuller sizing.
-          // Layout shape (map left, side panel right) stays the same on
-          // both; only the numbers scale, per Noor's request.
-          final tablet = isTabletLayout(context);
-          final gap = tablet ? 12.0 : 0.0;
-          final sidePanelWidth = tablet ? 260.0 : 128.0;
-          final joystickSize = tablet ? 150.0 : 104.0;
-          final edgeInset = tablet ? 20.0 : 10.0;
-
-          return SafeArea(
-            left: false,
-            child: Column(
-              children: [
-                TopBar(
-                  vehicleState: _vehicleState,
-                  onTapConnection: () => _onTapConnection(connected),
-                  manualMode: _manualMode,
-                  onModeChanged: (v) => setState(() => _manualMode = v),
-                  compact: !tablet,
-                ),
-                Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // LEFT: map, with manual-only overlay controls.
-                      Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.all(gap),
-                          child: Stack(
-                            children: [
-                              DroneMapView(
-                                latitude: _vehicleState.latitude ?? 33.6844,
-                                longitude: _vehicleState.longitude ?? 73.0479,
-                                headingDegrees:
-                                    _vehicleState.headingDegrees ?? 0,
-                                connected: connected,
-                                hasFix: hasFix,
-                              ),
-                              if (_manualMode) ...[
-                                Positioned(
-                                  left: edgeInset,
-                                  bottom: edgeInset,
-                                  child: Opacity(
-                                    opacity: connected ? 1 : 0.35,
-                                    child: IgnorePointer(
-                                      ignoring: !connected,
-                                      child: VirtualJoystick(
-                                        label: 'THROTTLE / YAW',
-                                        size: joystickSize,
-                                        springBack: false,
-                                        onChanged: _onLeftStick,
-                                        vehicleState: _vehicleState,
-                                        controller: _leftController,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  bottom: edgeInset,
-                                  left: 0,
-                                  right: 0,
-                                  child: Center(
-                                    child: FlightStatusPanel(
-                                      vehicleState: _vehicleState,
-                                      connectionManager: _connectionManager,
-                                      enabled: connected,
-                                      compact: !tablet,
-                                    ),
-                                  ),
-                                ),
-                                Positioned(
-                                  right: edgeInset,
-                                  bottom: edgeInset,
-                                  child: Opacity(
-                                    opacity: connected ? 1 : 0.35,
-                                    child: IgnorePointer(
-                                      ignoring: !connected,
-                                      child: VirtualJoystick(
-                                        label: 'PITCH / ROLL',
-                                        size: joystickSize,
-                                        onChanged: _onRightStick,
-                                        vehicleState: _vehicleState,
-                                        controller: _rightController,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ],
+      body: SafeArea(
+        left: false,
+        child: Column(
+          children: [
+            TopBar(
+              onTapConnection: () => _onTapConnection(connected),
+              manualMode: _manualMode,
+              onModeChanged: (v) => setState(() => _manualMode = v),
+              compact: !tablet,
+            ),
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // LEFT: map, with manual-only overlay controls.
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(gap),
+                      child: Stack(
+                        children: [
+                          DroneMapView(
+                            latitude: vehicleState.latitude ?? 33.6844,
+                            longitude: vehicleState.longitude ?? 73.0479,
+                            headingDegrees: vehicleState.headingDegrees ?? 0,
+                            connected: connected,
+                            hasFix: hasFix,
                           ),
-                        ),
-                      ),
-
-                      // RIGHT: fixed-width side panel — camera feed on top,
-                      // telemetry below. Always visible in both modes.
-                      SizedBox(
-                        width: sidePanelWidth,
-                        child: Padding(
-                          padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              CameraFeedPanel(
-                                connected: connected,
-                                compact: !tablet,
+                          if (_manualMode) ...[
+                            Positioned(
+                              left: edgeInset,
+                              bottom: edgeInset,
+                              child: Opacity(
+                                opacity: connected ? 1 : 0.35,
+                                child: IgnorePointer(
+                                  ignoring: !connected,
+                                  child: VirtualJoystick(
+                                    label: 'THROTTLE / YAW',
+                                    size: joystickSize,
+                                    springBack: false,
+                                    onChanged: _onLeftStick,
+                                    controller: _leftController,
+                                  ),
+                                ),
                               ),
-                              SizedBox(height: gap),
-                              Expanded(
-                                child: TelemetryPanel(
-                                  vehicleState: _vehicleState,
+                            ),
+                            Positioned(
+                              bottom: edgeInset,
+                              left: 0,
+                              right: 0,
+                              child: Center(
+                                child: FlightStatusPanel(
+                                  enabled: connected,
                                   compact: !tablet,
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
+                            ),
+                            Positioned(
+                              right: edgeInset,
+                              bottom: edgeInset,
+                              child: Opacity(
+                                opacity: connected ? 1 : 0.35,
+                                child: IgnorePointer(
+                                  ignoring: !connected,
+                                  child: VirtualJoystick(
+                                    label: 'PITCH / ROLL',
+                                    size: joystickSize,
+                                    onChanged: _onRightStick,
+                                    controller: _rightController,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
                   ),
-                ),
-              ],
+
+                  // RIGHT: fixed-width side panel — camera feed on top,
+                  // telemetry below. Always visible in both modes.
+                  SizedBox(
+                    width: sidePanelWidth,
+                    child: Padding(
+                      padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          CameraFeedPanel(
+                            connected: connected,
+                            compact: !tablet,
+                          ),
+                          SizedBox(height: gap),
+                          Expanded(child: TelemetryPanel(compact: !tablet)),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
-          );
-        },
+          ],
+        ),
       ),
     );
   }
