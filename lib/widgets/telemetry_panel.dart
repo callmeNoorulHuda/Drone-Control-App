@@ -5,6 +5,7 @@ import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
 import '../state/settings_controller.dart';
 import '../state/unit_system.dart';
+import '../screens/telemetry_detail_screen.dart';
 
 /// Compact vertical telemetry card that floats over the top-right corner
 /// of the map, matching the reference layout's "TELEMETRY" readout box.
@@ -38,123 +39,128 @@ class TelemetryPanel extends StatelessWidget {
     final bearingToHome = vehicleState.bearingToHomeDegrees;
     final flightDuration = vehicleState.flightDuration;
 
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-        compact ? 10 : 14,
-        compact ? 9 : 12,
-        compact ? 10 : 14,
-        compact ? 9 : 12,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(compact ? 12 : 16),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black38,
-            blurRadius: 10,
-            offset: Offset(0, 10),
-          ),
-        ],
-      ),
-      // Scrollable now — there are more rows than always fit on a small
-      // phone's fixed-width side panel; this just prevents overflow.
-      child: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Center(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: compact ? 8 : 12),
-                child: Text(
-                  'TELEMETRY',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: compact ? 12 : 14,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.5,
+    return GestureDetector(
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const TelemetryDetailScreen())),
+      child: Container(
+        width: double.infinity,
+        padding: EdgeInsets.fromLTRB(
+          compact ? 10 : 14,
+          compact ? 9 : 12,
+          compact ? 10 : 14,
+          compact ? 9 : 12,
+        ),
+        decoration: BoxDecoration(
+          color: AppColors.surface.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(compact ? 12 : 16),
+          border: Border.all(color: AppColors.hairline),
+          boxShadow: const [
+            BoxShadow(
+              color: Colors.black38,
+              blurRadius: 10,
+              offset: Offset(0, 10),
+            ),
+          ],
+        ),
+        // Scrollable now — there are more rows than always fit on a small
+        // phone's fixed-width side panel; this just prevents overflow.
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: Padding(
+                  padding: EdgeInsets.only(bottom: compact ? 8 : 12),
+                  child: Text(
+                    'TELEMETRY',
+                    style: TextStyle(
+                      color: AppColors.textSecondary,
+                      fontSize: compact ? 12 : 14,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 1.5,
+                    ),
                   ),
                 ),
               ),
-            ),
-            _TelemetryRow(
-              icon: Icons.battery_full,
-              label: 'Battery',
-              value: connected
-                  ? '${(vehicleState.batteryPercent ?? 0).toStringAsFixed(0)}%'
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.height,
-              label: 'Altitude',
-              value: connected
-                  ? units.formatDistance(vehicleState.altitudeMeters ?? 0)
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.speed,
-              label: 'Speed',
-              value: connected
-                  ? units.formatSpeed(vehicleState.speedMps ?? 0)
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: (vehicleState.verticalSpeedMps ?? 0) < 0
-                  ? Icons.south
-                  : Icons.north,
-              label: 'V. Speed',
-              value: connected
-                  ? units.formatVerticalSpeed(
-                      vehicleState.verticalSpeedMps ?? 0,
-                    )
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.explore,
-              label: 'Heading',
-              value: connected
-                  ? '${(vehicleState.headingDegrees ?? 0).toStringAsFixed(0)}°'
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: hasFix ? Icons.gps_fixed : Icons.gps_not_fixed,
-              label: 'GPS',
-              value: connected ? (hasFix ? 'Fix' : 'No Fix') : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.social_distance,
-              label: 'Dist. Home',
-              value: connected && distanceToHome != null
-                  ? units.formatDistance(distanceToHome)
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.assistant_navigation,
-              label: 'Brg. Home',
-              value: connected && bearingToHome != null
-                  ? '${bearingToHome.toStringAsFixed(0)}°'
-                  : '--',
-              compact: compact,
-            ),
-            _TelemetryRow(
-              icon: Icons.timer_outlined,
-              label: 'Flight Time',
-              value: connected && flightDuration != null
-                  ? _formatDuration(flightDuration)
-                  : '--',
-              compact: compact,
-              showDivider: false,
-            ),
-          ],
+              _TelemetryRow(
+                icon: Icons.battery_full,
+                label: 'Battery',
+                value: connected
+                    ? '${(vehicleState.batteryPercent ?? 0).toStringAsFixed(0)}%'
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.height,
+                label: 'Altitude',
+                value: connected
+                    ? units.formatDistance(vehicleState.altitudeMeters ?? 0)
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.speed,
+                label: 'Speed',
+                value: connected
+                    ? units.formatSpeed(vehicleState.speedMps ?? 0)
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: (vehicleState.verticalSpeedMps ?? 0) < 0
+                    ? Icons.south
+                    : Icons.north,
+                label: 'V. Speed',
+                value: connected
+                    ? units.formatVerticalSpeed(
+                        vehicleState.verticalSpeedMps ?? 0,
+                      )
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.explore,
+                label: 'Heading',
+                value: connected
+                    ? '${(vehicleState.headingDegrees ?? 0).toStringAsFixed(0)}°'
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: hasFix ? Icons.gps_fixed : Icons.gps_not_fixed,
+                label: 'GPS',
+                value: connected ? (hasFix ? 'Fix' : 'No Fix') : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.social_distance,
+                label: 'Dist. Home',
+                value: connected && distanceToHome != null
+                    ? units.formatDistance(distanceToHome)
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.assistant_navigation,
+                label: 'Brg. Home',
+                value: connected && bearingToHome != null
+                    ? '${bearingToHome.toStringAsFixed(0)}°'
+                    : '--',
+                compact: compact,
+              ),
+              _TelemetryRow(
+                icon: Icons.timer_outlined,
+                label: 'Flight Time',
+                value: connected && flightDuration != null
+                    ? _formatDuration(flightDuration)
+                    : '--',
+                compact: compact,
+                showDivider: false,
+              ),
+            ],
+          ),
         ),
       ),
     );
