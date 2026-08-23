@@ -17,6 +17,7 @@ class DroneMapView extends StatefulWidget {
     required this.hasFix,
     this.isDarkMode = false,
     this.markerStyle = MarkerStyle.drone,
+    this.useSatelliteMap = false,
   });
 
   final double latitude;
@@ -26,6 +27,7 @@ class DroneMapView extends StatefulWidget {
   final bool hasFix;
   final bool isDarkMode;
   final MarkerStyle markerStyle;
+  final bool useSatelliteMap;
 
   @override
   State<DroneMapView> createState() => _DroneMapViewState();
@@ -86,7 +88,9 @@ class _DroneMapViewState extends State<DroneMapView> {
                 // of relying on auto-detection from Theme.of(context), so
                 // it stays in sync with your own app-level toggle.
                 MapTileLayer(
-                  mapType: MapTileType.osm,
+                  mapType: widget.useSatelliteMap
+                      ? MapTileType.satellite
+                      : MapTileType.osm,
                   isDarkMode: widget.isDarkMode,
                   userAgentPackageName: 'com.safesky.drone_control',
                 ),

@@ -24,6 +24,10 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to show the drone feed placeholder.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs microphone access for the video feed placeholder.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

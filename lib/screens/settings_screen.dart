@@ -3,7 +3,9 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
 import '../state/marker_style.dart';
 import '../state/settings_controller.dart';
+import '../state/joystick_style.dart';
 import '../theme/app_theme.dart';
+import '../state/unit_system.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -49,6 +51,95 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 )
                 .toList(),
+          ),
+          const SizedBox(height: 32),
+          const _SectionLabel('JOYSTICK STYLE'),
+          const SizedBox(height: 4),
+          Text(
+            'Choose how the flight control sticks look.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: JoystickStyle.values
+                .map(
+                  (style) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: _JoystickOption(
+                        style: style,
+                        selected: settings.joystickStyle == style,
+                        onTap: () => settings.setJoystickStyle(style),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 32),
+          const _SectionLabel('UNITS'),
+          const SizedBox(height: 4),
+          Text(
+            'Speed, altitude, and distance readouts.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: UnitSystem.values
+                .map(
+                  (system) => Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 6),
+                      child: _TextOption(
+                        label: system.label,
+                        selected: settings.unitSystem == system,
+                        onTap: () => settings.setUnitSystem(system),
+                      ),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          const SizedBox(height: 32),
+          const _SectionLabel('MAP STYLE'),
+          const SizedBox(height: 4),
+          Text(
+            'Tile imagery used for the flight map.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 12.5,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _TextOption(
+                    label: 'Street',
+                    selected: !settings.useSatelliteMap,
+                    onTap: () => settings.setUseSatelliteMap(false),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _TextOption(
+                    label: 'Satellite',
+                    selected: settings.useSatelliteMap,
+                    onTap: () => settings.setUseSatelliteMap(true),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -168,6 +259,7 @@ class _MarkerOption extends StatelessWidget {
   });
 
   final MarkerStyle style;
+
   final bool selected;
   final VoidCallback onTap;
 
@@ -214,6 +306,139 @@ class _MarkerOption extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _JoystickOption extends StatelessWidget {
+  const _JoystickOption({
+    required this.style,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final JoystickStyle style;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    final Widget preview = style == JoystickStyle.arrows
+        ? SizedBox(
+            width: 38,
+            height: 38,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Container(
+                  width: 8,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    color: AppColors.amber,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Container(
+                  width: 34,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: AppColors.amber,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                Container(
+                  width: 6,
+                  height: 6,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          )
+        : const Icon(
+            Icons.radio_button_checked,
+            size: 34,
+            color: AppColors.amber,
+          );
+
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 8),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppColors.amber : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            preview,
+            const SizedBox(height: 8),
+            Text(
+              style.label,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: selected ? AppColors.amber : scheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Simple text-only tappable option card — same visual treatment as
+/// _MarkerOption but without an icon, for two-way text choices
+/// (Metric/Imperial, Street/Satellite).
+class _TextOption extends StatelessWidget {
+  const _TextOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 8),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppColors.amber : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? AppColors.amber : scheme.onSurfaceVariant,
+          ),
         ),
       ),
     );

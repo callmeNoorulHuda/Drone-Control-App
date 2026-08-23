@@ -21,7 +21,7 @@ class VirtualJoystick extends StatefulWidget {
   const VirtualJoystick({
     super.key,
     required this.label,
-    this.size = 420,
+    this.size = 150,
     this.springBack = true,
     this.onChanged,
     this.controller,
@@ -40,7 +40,7 @@ class VirtualJoystick extends StatefulWidget {
 class _VirtualJoystickState extends State<VirtualJoystick> {
   Offset _stick = Offset.zero; // normalized, -1..1 on each axis
 
-  double get _knobSize => (widget.size * 0.30).clamp(40, 56);
+  double get _knobSize => (widget.size * 0.27).clamp(46, 76);
 
   @override
   void initState() {
@@ -103,7 +103,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     final radius = widget.size / 2;
     final knob = _knobSize;
     final travel = radius - (knob / 2 + 4);
-    final arrowInset = radius * 0.14; // how far arrows sit from the edge
+    final arrowInset = radius * 0.10; // how far arrows sit from the edge
 
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -15,6 +15,8 @@ import '../widgets/flight_status_panel.dart';
 import '../widgets/telemetry_panel.dart';
 import '../widgets/top_bar.dart';
 import '../widgets/virtual_joystick.dart';
+import '../widgets/arrow_joystick.dart';
+import '../state/joystick_style.dart';
 
 class MainFlightScreen extends StatefulWidget {
   const MainFlightScreen({super.key});
@@ -77,8 +79,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
       if (_vehicleState.connectionStatus == ConnectionStatus.connected) {
         final throttle = _forceIdleThrottleForArming
-            ? 0.0
-            : ((1 - _leftStick.dy) / 2).clamp(0.0, 1.0);
+            ? -1.0
+            : (-_leftStick.dy).clamp(-1.0, 1.0);
         _connectionManager.sendManualControl(
           throttle: throttle,
           yaw: _leftStick.dx,
@@ -117,10 +119,17 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   Future<void> _onArmToggle(bool arm) async {
     if (arm) {
       setState(() => _forceIdleThrottleForArming = true);
-      // Visually + functionally snaps the throttle stick to minimum
-      // BEFORE the arm command goes out, so the pilot never has to
-      // manually pull the throttle down first — this is item 1's fix.
+      // Visually snaps the throttle stick to minimum.
       _leftController.moveTo(const Offset(0, 1));
+
+      // Force a manual control packet with -1.0 throttle (idle) IMMEDIATELY.
+      // ArduPilot rejects arm commands if the last received throttle wasn't 0.
+      await _connectionManager.sendManualControl(
+        throttle: -1.0,
+        yaw: _leftStick.dx,
+        pitch: -_rightStick.dy,
+        roll: _rightStick.dx,
+      );
     }
 
     await _connectionManager.armDisarm(arm);
@@ -132,7 +141,13 @@ class _MainFlightScreenState extends State<MainFlightScreen>
       while (!_vehicleState.armed && DateTime.now().isBefore(deadline)) {
         await Future.delayed(const Duration(milliseconds: 100));
       }
-      if (mounted) setState(() => _forceIdleThrottleForArming = false);
+
+      if (mounted) {
+        setState(() => _forceIdleThrottleForArming = false);
+        // Automatically return throttle to center once armed, as requested.
+        // NOTE: In Stabilize mode, this will spin motors to 50% (hover).
+        _leftController.center();
+      }
     }
   }
 
@@ -154,6 +169,50 @@ class _MainFlightScreenState extends State<MainFlightScreen>
       });
       _vehicleState.clearError();
     }
+    if (_vehicleState.connectionStatus == ConnectionStatus.timedOut) {
+      if (!_timedOutDialogShown) {
+        _timedOutDialogShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          showDialog(
+            context: context,
+            builder: (_) => AlertDialog(
+              backgroundColor: AppColors.surface,
+              surfaceTintColor: Colors.transparent,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: const BorderSide(color: AppColors.hairline),
+              ),
+              title: const Text(
+                'Could not find device',
+                style: TextStyle(
+                  color: AppColors.amber,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              content: const Text(
+                'No response after 10 seconds. Please make sure your drone/SITL is powered on and reachable, then try again.',
+                style: TextStyle(color: AppColors.textSecondary),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: const Text(
+                    'OK',
+                    style: TextStyle(
+                      color: AppColors.amber,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        });
+      }
+    } else {
+      _timedOutDialogShown = false;
+    }
     if (_vehicleState.currentMode != _lastMode) {
       final previousMode = _lastMode;
       _lastMode = _vehicleState.currentMode;
@@ -162,7 +221,47 @@ class _MainFlightScreenState extends State<MainFlightScreen>
         _rightController.center();
       }
     }
+
+    if (_vehicleState.connectionStatus == ConnectionStatus.timedOut) {
+      if (!_timedOutDialogShown) {
+        _timedOutDialogShown = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showConnectionTimeoutDialog();
+        });
+      }
+    } else {
+      _timedOutDialogShown = false;
+    }
+
     _checkBatteryStatus();
+  }
+
+  Future<void> _showConnectionTimeoutDialog() async {
+    final shouldRetry = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceRaised,
+        title: const Text('Connection Timed Out'),
+        content: const Text(
+          'No response was received from the vehicle. Check that it\'s '
+          'powered on and in range, then try again.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Dismiss'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+    if (shouldRetry == true && mounted) {
+      _connectionManager.connect(ip: '192.168.4.1', port: 14550);
+    }
   }
 
   void _checkBatteryStatus() {
@@ -282,8 +381,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     final tablet = isTabletLayout(context);
     final gap = tablet ? 12.0 : 0.0;
     final sidePanelWidth = tablet ? 260.0 : 128.0;
-    final joystickSize = tablet ? 150.0 : 104.0;
-    final edgeInset = tablet ? 20.0 : 10.0;
+    final joystickSize = tablet ? 200.0 : 136.0;
+    final edgeInset = tablet ? 20.0 : 12.0;
 
     return Scaffold(
       backgroundColor: AppColors.bg,
@@ -315,6 +414,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                             hasFix: hasFix,
                             isDarkMode: settings.isDarkMode,
                             markerStyle: settings.markerStyle,
+                            useSatelliteMap: settings.useSatelliteMap,
                           ),
                           if (_manualMode) ...[
                             Positioned(
@@ -324,12 +424,53 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                 opacity: connected ? 1 : 0.35,
                                 child: IgnorePointer(
                                   ignoring: !connected,
-                                  child: VirtualJoystick(
-                                    label: 'THROTTLE / YAW',
-                                    size: joystickSize,
-                                    springBack: false,
-                                    onChanged: _onLeftStick,
-                                    controller: _leftController,
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.surface.withValues(
+                                            alpha: 0.8,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            8,
+                                          ),
+                                          border: Border.all(
+                                            color: AppColors.hairline,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${(-_leftStick.dy * 100).round()}%',
+                                          style: const TextStyle(
+                                            color: AppColors.amber,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w900,
+                                            fontFamily: 'monospace',
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 8),
+                                      settings.joystickStyle ==
+                                              JoystickStyle.arrows
+                                          ? ArrowJoystick(
+                                              label: 'THROTTLE / YAW',
+                                              size: joystickSize,
+                                              springBack: false,
+                                              onChanged: _onLeftStick,
+                                              controller: _leftController,
+                                            )
+                                          : VirtualJoystick(
+                                              label: 'THROTTLE / YAW',
+                                              size: joystickSize,
+                                              springBack: false,
+                                              onChanged: _onLeftStick,
+                                              controller: _leftController,
+                                            ),
+                                    ],
                                   ),
                                 ),
                               ),
@@ -353,12 +494,21 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                 opacity: connected ? 1 : 0.35,
                                 child: IgnorePointer(
                                   ignoring: !connected,
-                                  child: VirtualJoystick(
-                                    label: 'PITCH / ROLL',
-                                    size: joystickSize,
-                                    onChanged: _onRightStick,
-                                    controller: _rightController,
-                                  ),
+                                  child:
+                                      settings.joystickStyle ==
+                                          JoystickStyle.arrows
+                                      ? ArrowJoystick(
+                                          label: 'PITCH / ROLL',
+                                          size: joystickSize,
+                                          onChanged: _onRightStick,
+                                          controller: _rightController,
+                                        )
+                                      : VirtualJoystick(
+                                          label: 'PITCH / ROLL',
+                                          size: joystickSize,
+                                          onChanged: _onRightStick,
+                                          controller: _rightController,
+                                        ),
                                 ),
                               ),
                             ),

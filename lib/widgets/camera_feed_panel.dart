@@ -1,15 +1,12 @@
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
 /// Live camera feed card for the side panel.
 ///
-/// NOTE: this is a visual placeholder — there's no actual video pipeline
-/// wired up yet (no RTSP/WebRTC source from the drone's companion
-/// computer). When you're ready to make this real, pub.dev options worth
-/// looking at: `flutter_vlc_player` (handles RTSP well) or `video_player`
-/// + a companion streaming server if you go the WebRTC/HLS route. Ask me
-/// when you get there and I'll wire whichever fits your video source.
-class CameraFeedPanel extends StatelessWidget {
+/// UPDATED: now uses the `camera` package to show the device's local camera
+/// as a functional placeholder for the future drone video stream.
+class CameraFeedPanel extends StatefulWidget {
   const CameraFeedPanel({
     super.key,
     required this.connected,
@@ -20,11 +17,55 @@ class CameraFeedPanel extends StatelessWidget {
   final bool compact;
 
   @override
+  State<CameraFeedPanel> createState() => _CameraFeedPanelState();
+}
+
+class _CameraFeedPanelState extends State<CameraFeedPanel> {
+  CameraController? _controller;
+  bool _isCameraInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeCamera();
+  }
+
+  Future<void> _initializeCamera() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) return;
+
+      // Use the first available camera (usually the back camera on phones,
+      // or the webcam on laptops).
+      _controller = CameraController(
+        cameras.first,
+        ResolutionPreset.medium,
+        enableAudio: false,
+      );
+
+      await _controller!.initialize();
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+        });
+      }
+    } catch (e) {
+      debugPrint('Camera initialization failed: \$e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return AspectRatio(
       aspectRatio: 16 / 9,
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(compact ? 12 : 16),
+        borderRadius: BorderRadius.circular(widget.compact ? 12 : 16),
         child: Container(
           decoration: BoxDecoration(
             color: AppColors.surface,
@@ -33,8 +74,7 @@ class CameraFeedPanel extends StatelessWidget {
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Placeholder "footage" gradient — swap for a real video
-              // widget once a stream source is picked.
+              // 1. Base Layer: Static Gradient (Fallback if camera fails)
               Container(
                 decoration: const BoxDecoration(
                   gradient: LinearGradient(
@@ -44,22 +84,32 @@ class CameraFeedPanel extends StatelessWidget {
                   ),
                 ),
               ),
-              Center(
-                child: Icon(
-                  connected
-                      ? Icons.videocam_outlined
-                      : Icons.videocam_off_outlined,
-                  size: compact ? 20 : 28,
-                  color: AppColors.textSecondary,
+
+              // 2. Camera Preview: Only active when "connected" to simulate
+              // drone signal.
+              if (widget.connected && _isCameraInitialized)
+                CameraPreview(_controller!),
+
+              // 3. Status Icons (visible if disconnected or camera loading)
+              if (!widget.connected || !_isCameraInitialized)
+                Center(
+                  child: Icon(
+                    widget.connected
+                        ? Icons.videocam_outlined
+                        : Icons.videocam_off_outlined,
+                    size: widget.compact ? 20 : 28,
+                    color: AppColors.textSecondary,
+                  ),
                 ),
-              ),
-              if (connected)
+
+              // 4. Overlay Labels
+              if (widget.connected)
                 Positioned(
-                  top: compact ? 6 : 8,
-                  left: compact ? 6 : 8,
+                  top: widget.compact ? 6 : 8,
+                  left: widget.compact ? 6 : 8,
                   child: Container(
                     padding: EdgeInsets.symmetric(
-                      horizontal: compact ? 5 : 6,
+                      horizontal: widget.compact ? 5 : 6,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
@@ -70,16 +120,16 @@ class CameraFeedPanel extends StatelessWidget {
                       'LIVE',
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: compact ? 8 : 9,
+                        fontSize: widget.compact ? 8 : 9,
                         fontWeight: FontWeight.w800,
                         letterSpacing: 0.5,
                       ),
                     ),
                   ),
                 ),
-              if (!connected)
+              if (!widget.connected)
                 Positioned(
-                  bottom: compact ? 6 : 8,
+                  bottom: widget.compact ? 6 : 8,
                   left: 0,
                   right: 0,
                   child: Text(
@@ -87,7 +137,7 @@ class CameraFeedPanel extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       color: AppColors.textSecondary,
-                      fontSize: compact ? 8 : 9,
+                      fontSize: widget.compact ? 8 : 9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
                     ),

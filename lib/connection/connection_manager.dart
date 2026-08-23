@@ -40,6 +40,20 @@ class ConnectionManager {
   int? _targetPort;
 
   static const _heartbeatTimeout = Duration(seconds: 4);
+  // Fires only if we never received a single Heartbeat within
+  // _connectTimeout of calling connect(). If we're already connected by
+  // then, this is a no-op — the timer firing late doesn't matter since
+  // _handleFrame already cancelled it.
+  void _handleConnectTimeout() {
+    if (vehicleState.connectionStatus != ConnectionStatus.connecting) return;
+    _heartbeatTimer?.cancel();
+    _parserSubscription?.cancel();
+    _socket?.close();
+    _socket = null;
+    _parser = null;
+    _heartbeatTimeoutTimer?.cancel();
+    vehicleState.setConnectionStatus(ConnectionStatus.timedOut);
+  }
 
   Future<void> connect({required String ip, required int port}) async {
     vehicleState.connectionLost = false;
@@ -47,6 +61,12 @@ class ConnectionManager {
     _targetPort = port;
 
     vehicleState.setConnectionStatus(ConnectionStatus.connecting);
+    // Start the "did we ever hear back at all" timer. This is cancelled
+    // the moment the first Heartbeat arrives (see _handleFrame below). If
+    // it fires first, we never got a single valid packet back — that's a
+    // genuine timeout, distinct from _heartbeatTimeoutTimer below, which
+    // only handles losing a connection that was already established.
+    _connectTimeoutTimer = Timer(_connectTimeout, _handleConnectTimeout);
 
     // The "dialect" is the vocabulary of message types we know how to
     // decode — the base common.xml set from Monday's reading.
@@ -128,9 +148,9 @@ class ConnectionManager {
     final message = frame.message;
     // print('[DEBUG] Received message type: ${message.runtimeType}');
     if (message is CommandAck) {
-      print(
-        '[ConnectionManager] CommandAck — command: ${message.command}, result: ${message.result}',
-      );
+      // print(
+      //   '[ConnectionManager] CommandAck — command: ${message.command}, result: ${message.result}',
+      // );
       if (message.result != mavResultAccepted) {
         vehicleState.setError(_describeCommandResult(message.result));
       }
@@ -150,9 +170,9 @@ class ConnectionManager {
       final modeName =
           _ardupilotModeNames[message.customMode] ??
           message.customMode.toString();
-      print(
-        '[ConnectionManager] Heartbeat received — armed: $armed, mode: ${message.customMode}',
-      );
+      // print(
+      //   '[ConnectionManager] Heartbeat received — armed: $armed, mode: ${message.customMode}',
+      // );
       vehicleState.applyHeartbeat(armed: armed, mode: modeName);
     }
 
@@ -161,7 +181,7 @@ class ConnectionManager {
       // both raw integer fields, scaled down to normal units here.
       final volts = message.voltageBattery / 1000.0;
       final percent = message.batteryRemaining.toDouble();
-      ;
+
       vehicleState.applyBattery(percent: percent, voltage: volts);
     }
 
@@ -177,11 +197,15 @@ class ConnectionManager {
       final speed = (message.vx * message.vx + message.vy * message.vy) > 0
           ? (message.vx.abs() + message.vy.abs()) / 100.0
           : 0.0;
+      // vz is NED "velocity down", cm/s, positive = descending. Negate
+      // so positive = climbing, negative = descending (intuitive).
+      final verticalSpeed = -message.vz / 100.0;
 
       vehicleState.applyPosition(
         alt: alt,
         heading: heading,
         speed: speed,
+        verticalSpeed: verticalSpeed,
         lat: lat,
         lon: lon,
       );
@@ -196,13 +220,15 @@ class ConnectionManager {
     _parser = null;
     _heartbeatTimeoutTimer?.cancel();
     vehicleState.reset();
+    _connectTimeoutTimer?.cancel();
   }
 
   void _sendMessage(MavlinkMessage message) {
     if (_socket == null ||
         _lastSenderAddress == null ||
-        _lastSenderPort == null)
+        _lastSenderPort == null) {
       return;
+    }
     final frame = MavlinkFrame.v2(
       _sequence,
       _mySystemId,
@@ -265,7 +291,12 @@ class ConnectionManager {
       target: 1,
       x: (pitch.clamp(-1, 1) * 1000).round(),
       y: (roll.clamp(-1, 1) * 1000).round(),
-      z: (throttle.clamp(0, 1) * 1000).round(),
+      // Maps our [-1, 1] throttle input back to the [0, 1000] range that
+      // flight controllers expect for their throttle channel.
+      // -1.0 (Bottom) -> 0 (Zero Throttle)
+      //  0.0 (Center) -> 500 (Neutral/Hover)
+      //  1.0 (Top)    -> 1000 (Full Throttle)
+      z: (((throttle.clamp(-1, 1) + 1) / 2) * 1000).round(),
       r: (yaw.clamp(-1, 1) * 1000).round(),
       buttons: 0,
       buttons2: 0,
