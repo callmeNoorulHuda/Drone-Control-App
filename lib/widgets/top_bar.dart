@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../screens/settings_screen.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -121,12 +122,15 @@ class TopBar extends StatelessWidget {
             ),
           ),
           SizedBox(width: compact ? 10 : 18),
-          // Settings screen isn't built yet — icon is a placeholder anchor
-          // point for sensor/radio/profile settings mentioned on the roadmap.
-          Icon(
-            Icons.settings_outlined,
-            color: AppColors.textSecondary,
-            size: compact ? 17 : 20,
+          GestureDetector(
+            onTap: () => Navigator.of(
+              context,
+            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            child: Icon(
+              Icons.settings_outlined,
+              color: AppColors.textSecondary,
+              size: compact ? 17 : 20,
+            ),
           ),
         ],
       ),

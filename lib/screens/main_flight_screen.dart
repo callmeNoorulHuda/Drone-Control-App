@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 import '../connection/connection_manager.dart';
 import '../state/connection_status.dart';
 import '../state/joystick_controller.dart';
+import '../state/settings_controller.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/responsive.dart';
@@ -43,6 +44,18 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   Offset _rightStick = Offset.zero;
   Timer? _controlTimer;
 
+  // --- Battery warning/critical dialog state -------------------------
+  // Warning: pop a confirm-or-cancel RTL dialog. Re-prompts every extra
+  // _batteryRepromptStep percent the battery drops past the last time we
+  // showed it (so cancelling once doesn't silence it for the whole flight,
+  // but it also doesn't nag on every single percent tick).
+  // Critical: no dialog — RTL is triggered automatically, no confirmation.
+  static const double _batteryWarningThreshold = 20.0;
+  static const double _batteryCriticalThreshold = 10.0;
+  static const double _batteryRepromptStep = 2.0;
+  double? _lastBatteryPromptPercent;
+  bool _batteryDialogShowing = false;
+
   @override
   void initState() {
     super.initState();
@@ -56,8 +69,9 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     _applySystemUISettings();
 
     // KEPT as addListener on purpose — this drives one-shot side effects
-    // (showing a snackbar, centering joysticks), not UI rebuilding. See
-    // the note in build() for the part that WAS converted to watch().
+    // (showing a snackbar, centering joysticks, battery warnings), not UI
+    // rebuilding. See the note in build() for the part that WAS converted
+    // to watch().
     _vehicleState.addListener(_onVehicleStateChanged);
 
     _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
@@ -96,19 +110,30 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     }
   }
 
-  Future<void> _onArmPressed() async {
-    setState(() => _forceIdleThrottleForArming = true);
-    _leftController.moveTo(const Offset(0, 1));
-    await _connectionManager.armDisarm(true);
-
-    // Wait for the heartbeat to confirm armed, with a safety timeout
-    // so a failed/rejected arm doesn't leave throttle stuck at 0 forever.
-    final deadline = DateTime.now().add(const Duration(seconds: 3));
-    while (!_vehicleState.armed && DateTime.now().isBefore(deadline)) {
-      await Future.delayed(const Duration(milliseconds: 100));
+  // Renamed from the old (never-called) _onArmPressed, and now handles
+  // BOTH directions — arm and disarm — since it's the single entry point
+  // FlightStatusPanel calls via its onArmToggle callback. Only the arm
+  // path forces idle throttle first; disarm doesn't need that.
+  Future<void> _onArmToggle(bool arm) async {
+    if (arm) {
+      setState(() => _forceIdleThrottleForArming = true);
+      // Visually + functionally snaps the throttle stick to minimum
+      // BEFORE the arm command goes out, so the pilot never has to
+      // manually pull the throttle down first — this is item 1's fix.
+      _leftController.moveTo(const Offset(0, 1));
     }
 
-    if (mounted) setState(() => _forceIdleThrottleForArming = false);
+    await _connectionManager.armDisarm(arm);
+
+    if (arm) {
+      // Wait for the heartbeat to confirm armed, with a safety timeout
+      // so a failed/rejected arm doesn't leave throttle stuck at 0 forever.
+      final deadline = DateTime.now().add(const Duration(seconds: 3));
+      while (!_vehicleState.armed && DateTime.now().isBefore(deadline)) {
+        await Future.delayed(const Duration(milliseconds: 100));
+      }
+      if (mounted) setState(() => _forceIdleThrottleForArming = false);
+    }
   }
 
   String? _lastMode;
@@ -129,52 +154,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
       });
       _vehicleState.clearError();
     }
-    if (_vehicleState.connectionStatus == ConnectionStatus.timedOut) {
-      if (!_timedOutDialogShown) {
-        _timedOutDialogShown = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (!mounted) return;
-          showDialog(
-            context: context,
-            builder: (_) => AlertDialog(
-              backgroundColor: AppColors.surface,
-              surfaceTintColor: Colors.transparent,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-                side: const BorderSide(color: AppColors.hairline),
-              ),
-              title: const Text(
-                'Could not find device',
-                style: TextStyle(
-                  color: AppColors.amber,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              content: const Text(
-                'No response after 10 seconds. Please make sure your drone/SITL is powered on and reachable, then try again.',
-                style: TextStyle(color: AppColors.textSecondary),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text(
-                    'OK',
-                    style: TextStyle(
-                      color: AppColors.amber,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        });
-      }
-    } else {
-      // Reset so the dialog can show again on the next timeout
-      _timedOutDialogShown = false;
-    }
-
     if (_vehicleState.currentMode != _lastMode) {
       final previousMode = _lastMode;
       _lastMode = _vehicleState.currentMode;
@@ -182,6 +161,81 @@ class _MainFlightScreenState extends State<MainFlightScreen>
         _leftController.center();
         _rightController.center();
       }
+    }
+    _checkBatteryStatus();
+  }
+
+  void _checkBatteryStatus() {
+    final battery = _vehicleState.batteryPercent;
+    if (battery == null) return;
+    if (_vehicleState.connectionStatus != ConnectionStatus.connected) return;
+
+    if (battery <= _batteryCriticalThreshold) {
+      // Critical: no confirmation, just go — matches the "if less than a
+      // certain level, make it automatically RTL and the person isn't
+      // able to do anything" requirement.
+      if (_vehicleState.currentMode != 'RTL') {
+        _connectionManager.returnToLaunch();
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Critical battery — returning to launch automatically.',
+              ),
+              backgroundColor: AppColors.danger,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        });
+      }
+      return;
+    }
+
+    if (battery <= _batteryWarningThreshold) {
+      final droppedEnoughToReprompt =
+          _lastBatteryPromptPercent == null ||
+          (_lastBatteryPromptPercent! - battery) >= _batteryRepromptStep;
+      if (!_batteryDialogShowing && droppedEnoughToReprompt) {
+        _lastBatteryPromptPercent = battery;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _showBatteryDialog(battery);
+        });
+      }
+    } else {
+      // Battery recovered above the warning line (e.g. reconnect with a
+      // fresh pack) — reset so a future dip re-prompts from scratch.
+      _lastBatteryPromptPercent = null;
+    }
+  }
+
+  Future<void> _showBatteryDialog(double percent) async {
+    _batteryDialogShowing = true;
+    final shouldReturn = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.surfaceRaised,
+        title: const Text('Battery Low'),
+        content: Text(
+          'Battery at ${percent.toStringAsFixed(0)}%. Return to launch now?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('RTL'),
+          ),
+        ],
+      ),
+    );
+    _batteryDialogShowing = false;
+    if (shouldReturn == true) {
+      await _connectionManager.returnToLaunch();
     }
   }
 
@@ -214,6 +268,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     // and reruns it automatically on notifyListeners(), same effect as
     // the old ListenableBuilder wrapper, one less nested widget.
     final vehicleState = context.watch<VehicleState>();
+    final settings = context.watch<SettingsController>();
 
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
@@ -258,6 +313,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                             headingDegrees: vehicleState.headingDegrees ?? 0,
                             connected: connected,
                             hasFix: hasFix,
+                            isDarkMode: settings.isDarkMode,
+                            markerStyle: settings.markerStyle,
                           ),
                           if (_manualMode) ...[
                             Positioned(
@@ -285,6 +342,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                 child: FlightStatusPanel(
                                   enabled: connected,
                                   compact: !tablet,
+                                  onArmToggle: _onArmToggle,
                                 ),
                               ),
                             ),

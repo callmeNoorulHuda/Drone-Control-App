@@ -15,6 +15,7 @@ class FlightStatusPanel extends StatelessWidget {
   const FlightStatusPanel({
     super.key,
     required this.enabled,
+    required this.onArmToggle,
     this.compact = false,
   });
 
@@ -22,7 +23,16 @@ class FlightStatusPanel extends StatelessWidget {
   // from Provider instead (watch for vehicleState since it drives
   // rendering, read for connectionManager since it's only ever called
   // from inside button callbacks, never used to build UI directly).
+  //
+  // onArmToggle is deliberately a callback INTO MainFlightScreen instead
+  // of calling connectionManager.armDisarm() directly here — arming needs
+  // to also force the throttle joystick to minimum first (see
+  // MainFlightScreen._onArmToggle), and that joystick lives in a sibling
+  // widget this panel has no reference to. Routing the actual arm/disarm
+  // action back up to the screen that owns both pieces keeps that
+  // coordination in one place instead of splitting it across two widgets.
   final bool enabled;
+  final Future<void> Function(bool arm) onArmToggle;
   final bool compact;
 
   Future<void> _confirmArm(BuildContext context, bool arm) async {
@@ -52,9 +62,7 @@ class FlightStatusPanel extends StatelessWidget {
       ),
     );
     if (confirmed == true) {
-      // read() here too — this runs inside a callback (after the dialog
-      // closes), not during build(), so no subscription is needed.
-      context.read<ConnectionManager>().armDisarm(arm);
+      await onArmToggle(arm);
     }
   }
 

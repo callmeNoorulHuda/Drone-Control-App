@@ -143,10 +143,10 @@ class _DroneMapViewState extends State<DroneMapView> {
   }
 }
 
-// Single marker widget that renders differently per MarkerStyle.
-// This is the switch-expression pattern: one widget reads an enum and
-// branches on it to decide what to draw. Add a new enum value + a new
-// case here whenever you want another pointer option in Settings.
+// Marker rendering — now that every MarkerStyle option is SVG-based (the
+// built-in "simple" arrow icon option was replaced by a 3rd real SVG, see
+// state/marker_style.dart), this no longer needs a per-case switch — it
+// just reads whichever asset path the current style maps to.
 class _PositionMarker extends StatelessWidget {
   const _PositionMarker({
     required this.headingDegrees,
@@ -166,22 +166,6 @@ class _PositionMarker extends StatelessWidget {
         ? AppColors.amber
         : (isDarkMode ? AppColors.textSecondary : Colors.black45);
 
-    final Widget iconWidget = switch (style) {
-      MarkerStyle.drone => SvgPicture.asset(
-        'assets/icons/drone_marker.svg',
-        width: 32,
-        height: 32,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      ),
-      MarkerStyle.airplane => SvgPicture.asset(
-        'assets/icons/airplane_marker.svg',
-        width: 32,
-        height: 32,
-        colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
-      ),
-      MarkerStyle.simple => Icon(Icons.navigation, color: color, size: 34),
-    };
-
     return AnimatedRotation(
       turns: headingDegrees / 360,
       duration: const Duration(milliseconds: 400),
@@ -200,7 +184,12 @@ class _PositionMarker extends StatelessWidget {
                 ]
               : null,
         ),
-        child: iconWidget,
+        child: SvgPicture.asset(
+          style.assetPath,
+          width: 32,
+          height: 32,
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+        ),
       ),
     );
   }

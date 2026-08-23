@@ -22,6 +22,8 @@ class TelemetryPanel extends StatelessWidget {
     final vehicleState = context.watch<VehicleState>();
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
+    final hasFix =
+        vehicleState.latitude != null && vehicleState.longitude != null;
 
     return Container(
       width: double.infinity,
@@ -92,6 +94,13 @@ class TelemetryPanel extends StatelessWidget {
             value: connected
                 ? '${(vehicleState.headingDegrees ?? 0).toStringAsFixed(0)}°'
                 : '--',
+            compact: compact,
+          ),
+          SizedBox(height: compact ? 10 : 20),
+          _Row(
+            icon: hasFix ? Icons.gps_fixed : Icons.gps_not_fixed,
+            label: 'GPS',
+            value: connected ? (hasFix ? 'Fix' : 'No Fix') : '--',
             compact: compact,
           ),
         ],

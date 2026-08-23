@@ -61,3 +61,48 @@ ThemeData buildAppTheme() {
     dividerColor: AppColors.hairline,
   );
 }
+
+/// Light counterpart to buildAppTheme(), same brand orange accent on a
+/// clean white/soft-gray base instead of navy. Used when the person
+/// toggles Light Mode in Settings.
+///
+/// SCOPE NOTE: this drives MaterialApp's theme (dialogs, the default
+/// AppBar, switches, etc.) and any widget that reads Theme.of(context) —
+/// which is exactly how the new SettingsScreen and DroneMapView's tiles
+/// are built. Most of the existing screen (TopBar, FlightStatusPanel,
+/// TelemetryPanel, VirtualJoystick) currently hardcodes AppColors.bg /
+/// AppColors.surface directly rather than reading from Theme.of(context),
+/// so those keep their current navy look regardless of this toggle. Making
+/// the whole flight screen theme-aware is a bigger follow-up refactor —
+/// ask if you want that done next.
+ThemeData buildAppLightTheme() {
+  final base = ThemeData.light(useMaterial3: true);
+  const lightBg = Color(0xFFF4F6FB);
+  const lightSurface = Color(0xFFFFFFFF);
+  const lightText = Color(0xFF11151F);
+  return base.copyWith(
+    scaffoldBackgroundColor: lightBg,
+    colorScheme: base.colorScheme.copyWith(
+      primary: AppColors.amber,
+      secondary: AppColors.cyan,
+      surface: lightSurface,
+      error: AppColors.danger,
+    ),
+    appBarTheme: const AppBarTheme(
+      backgroundColor: lightBg,
+      elevation: 0,
+      centerTitle: false,
+      titleTextStyle: TextStyle(
+        color: lightText,
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+        letterSpacing: 0.3,
+      ),
+    ),
+    textTheme: base.textTheme.apply(
+      bodyColor: lightText,
+      displayColor: lightText,
+    ),
+    dividerColor: Colors.black12,
+  );
+}

@@ -30,13 +30,14 @@ class ConnectionManager {
   InternetAddress? _lastSenderAddress;
   int? _lastSenderPort;
 
+  Timer? _connectTimeoutTimer;
+  static const _connectTimeout = Duration(seconds: 10);
+
   // Where we'll eventually SEND commands once arm/mode/manual control are
   // implemented (Week 3). Stored now, unused until then — today this class
   // only listens, it doesn't transmit anything yet.
   String? _targetIp;
   int? _targetPort;
-  Timer? _connectTimeoutTimer;
-  static const _connectTimeout = Duration(seconds: 10);
 
   static const _heartbeatTimeout = Duration(seconds: 4);
 
@@ -46,14 +47,9 @@ class ConnectionManager {
     _targetPort = port;
 
     vehicleState.setConnectionStatus(ConnectionStatus.connecting);
-    _connectTimeoutTimer = Timer(_connectTimeout, () {
-      if (vehicleState.connectionStatus == ConnectionStatus.connecting) {
-        vehicleState.setConnectionStatus(ConnectionStatus.timedOut);
-      }
-    });
 
     // The "dialect" is the vocabulary of message types we know how to
-    // decode — the base common.xml set of MAVLink messages.
+    // decode — the base common.xml set from Monday's reading.
     final dialect = MavlinkDialectCommon();
     _parser = MavlinkParser(dialect);
 
@@ -103,6 +99,31 @@ class ConnectionManager {
     6: 'RTL',
   };
 
+  // Maps MAV_RESULT codes (from dart_mavlink's common.dart dialect) to
+  // human-readable text, instead of always showing the generic
+  // "Command failed (code N)" regardless of what actually went wrong.
+  String _describeCommandResult(int result) {
+    if (result == mavResultTemporarilyRejected) {
+      return 'Command temporarily rejected — try again in a moment.';
+    }
+    if (result == mavResultDenied) {
+      return 'Command denied by the flight controller.';
+    }
+    if (result == mavResultUnsupported) {
+      return "This command isn't supported by the connected vehicle.";
+    }
+    if (result == mavResultFailed) {
+      return 'Command failed to execute.';
+    }
+    if (result == mavResultInProgress) {
+      return 'Command is still in progress.';
+    }
+    if (result == mavResultCancelled) {
+      return 'Command was cancelled.';
+    }
+    return 'Command failed (code $result).';
+  }
+
   void _handleFrame(MavlinkFrame frame) {
     final message = frame.message;
     // print('[DEBUG] Received message type: ${message.runtimeType}');
@@ -111,7 +132,7 @@ class ConnectionManager {
         '[ConnectionManager] CommandAck — command: ${message.command}, result: ${message.result}',
       );
       if (message.result != mavResultAccepted) {
-        vehicleState.setError('Command failed (code ${message.result})');
+        vehicleState.setError(_describeCommandResult(message.result));
       }
     }
 
@@ -175,7 +196,6 @@ class ConnectionManager {
     _parser = null;
     _heartbeatTimeoutTimer?.cancel();
     vehicleState.reset();
-    _connectTimeoutTimer?.cancel();
   }
 
   void _sendMessage(MavlinkMessage message) {
