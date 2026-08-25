@@ -83,7 +83,7 @@ class TopBar extends StatelessWidget {
               size: compact ? 17 : 20,
             ),
           ),
-          SizedBox(width: 10),
+          SizedBox(width: compact ? 20 : 18),
         ],
       ),
     );

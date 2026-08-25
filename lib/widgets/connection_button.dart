@@ -141,7 +141,7 @@ class _ConnectionButtonState extends State<ConnectionButton>
                         ),
                       ),
                     Container(
-                      width: widget.compact ? 7 : 9,
+                      width: widget.compact ? 7 : 10,
                       height: widget.compact ? 7 : 9,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,

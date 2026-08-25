@@ -379,8 +379,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     // Layout shape (map left, side panel right) stays the same on
     // both; only the numbers scale, per Noor's request.
     final tablet = isTabletLayout(context);
-    final gap = tablet ? 12.0 : 0.0;
-    final sidePanelWidth = tablet ? 260.0 : 128.0;
+    final gap = tablet ? 12.0 : 4.0;
+    final sidePanelWidth = tablet ? 260.0 : 135.0;
     final joystickSize = tablet ? 200.0 : 136.0;
     final edgeInset = tablet ? 20.0 : 12.0;
 
