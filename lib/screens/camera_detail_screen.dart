@@ -1,5 +1,5 @@
-import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 import '../theme/app_theme.dart';
 
 class CameraDetailScreen extends StatefulWidget {
@@ -11,41 +11,15 @@ class CameraDetailScreen extends StatefulWidget {
 }
 
 class _CameraDetailScreenState extends State<CameraDetailScreen> {
-  CameraController? _controller;
-  bool _isCameraInitialized = false;
+  final YOLOViewController _yoloController = YOLOViewController();
+  int _detectionCount = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    _initializeCamera();
-  }
-
-  Future<void> _initializeCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isEmpty) return;
-
-      _controller = CameraController(
-        cameras.first,
-        ResolutionPreset.high,
-        enableAudio: false,
-      );
-
-      await _controller!.initialize();
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      }
-    } catch (e) {
-      debugPrint('Camera initialization failed: $e');
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller?.dispose();
-    super.dispose();
+  // Fires continuously as frames are processed — we just use it to show
+  // a live "N OBJECTS" counter. The bounding boxes themselves are drawn
+  // natively by YOLOView, so no manual drawing code is needed here.
+  void _onResult(List<YOLOResult> results) {
+    if (!mounted) return;
+    setState(() => _detectionCount = results.length);
   }
 
   @override
@@ -55,8 +29,14 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (widget.connected && _isCameraInitialized)
-            Center(child: CameraPreview(_controller!))
+          if (widget.connected)
+            YOLOView(
+              // Official pretrained model — downloads once on first run, then
+              // caches locally. No internet needed after that (including mid-flight).
+              modelPath: 'yolo26n',
+              controller: _yoloController,
+              onResult: _onResult,
+            )
           else
             Container(
               color: AppColors.bg,
@@ -65,16 +45,14 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(
-                      widget.connected
-                          ? Icons.videocam_outlined
-                          : Icons.videocam_off_outlined,
+                      Icons.videocam_off_outlined,
                       size: 64,
                       color: AppColors.textSecondary,
                     ),
                     const SizedBox(height: 16),
-                    Text(
-                      widget.connected ? 'INITIALIZING CAMERA...' : 'NO SIGNAL',
-                      style: const TextStyle(
+                    const Text(
+                      'NO SIGNAL',
+                      style: TextStyle(
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,
@@ -85,7 +63,7 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
               ),
             ),
 
-          // HUD Overlays
+          // Close button
           Positioned(
             top: 40,
             left: 20,
@@ -95,7 +73,7 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
             ),
           ),
 
-          if (widget.connected)
+          if (widget.connected) ...[
             Positioned(
               top: 45,
               right: 20,
@@ -118,36 +96,30 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
                 ),
               ),
             ),
-
-          // Crosshair
-          if (widget.connected && _isCameraInitialized)
-            Center(
+            // Live object-count readout
+            Positioned(
+              top: 45,
+              left: 70,
               child: Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.white54, width: 1),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
                 ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 10,
-                        height: 1,
-                        color: Colors.white54,
-                      ),
-                    ),
-                    Center(
-                      child: Container(
-                        width: 1,
-                        height: 10,
-                        color: Colors.white54,
-                      ),
-                    ),
-                  ],
+                decoration: BoxDecoration(
+                  color: Colors.black54,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '$_detectionCount OBJECTS',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                  ),
                 ),
               ),
             ),
+          ],
         ],
       ),
     );

@@ -51,7 +51,7 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
         });
       }
     } catch (e) {
-      debugPrint('Camera initialization failed: $e');
+      debugPrint('Camera initialization failed: \$e');
     }
   }
 

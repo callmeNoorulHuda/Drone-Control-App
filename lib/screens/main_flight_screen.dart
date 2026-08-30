@@ -496,10 +496,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          CameraFeedPanel(
-                            connected: connected,
-                            compact: !tablet,
-                          ),
+                          CameraFeedPanel(connected: true, compact: !tablet),
                           SizedBox(height: gap),
                           Expanded(child: TelemetryPanel(compact: !tablet)),
                         ],
