@@ -392,13 +392,7 @@ class _TelemetryBlock extends StatelessWidget {
         )
         .animate()
         .fadeIn(delay: (index * 80).ms, duration: 500.ms)
-        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic)
-        .animate(onPlay: (c) => c.repeat(reverse: true))
-        .shimmer(
-          delay: 2.seconds,
-          duration: 3.seconds,
-          color: color.withValues(alpha: 0.1),
-        );
+        .slideY(begin: 0.2, end: 0, curve: Curves.easeOutCubic);
   }
 }
 

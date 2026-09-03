@@ -266,6 +266,9 @@ class _PositionMarker extends StatelessWidget {
         ? AppColors.amber
         : (isDarkMode ? AppColors.textSecondary : Colors.black45);
 
+    final isFirstDrone = style == MarkerStyle.drone;
+    final iconSize = isFirstDrone ? 45.0 : 65.0;
+
     return AnimatedRotation(
       turns: headingDegrees / 360,
       duration: const Duration(milliseconds: 400),
@@ -278,16 +281,16 @@ class _PositionMarker extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: color.withValues(alpha: 0.45),
-                    blurRadius: 28,
-                    spreadRadius: 4,
+                    blurRadius: isFirstDrone ? 22 : 28,
+                    spreadRadius: isFirstDrone ? 2 : 4,
                   ),
                 ]
               : null,
         ),
         child: SvgPicture.asset(
           style.assetPath,
-          width: 60,
-          height: 60,
+          width: iconSize,
+          height: iconSize,
           colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
         ),
       ),
