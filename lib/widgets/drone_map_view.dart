@@ -1,10 +1,10 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:flutter_map_tile_switcher/flutter_map_tile_switcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart' as ll;
 import 'package:easy_localization/easy_localization.dart';
+import '../config/map_keys.dart';
 import '../state/marker_style.dart';
 import '../theme/app_theme.dart';
 
@@ -85,18 +85,38 @@ class _DroneMapViewState extends State<DroneMapView> {
                 },
               ),
               children: [
-                // This one widget replaces your old TileLayer entirely.
-                // mapType stays osm (free CartoDB tiles, no API key, safe
-                // for Play Store). isDarkMode is passed explicitly instead
-                // of relying on auto-detection from Theme.of(context), so
-                // it stays in sync with your own app-level toggle.
-                MapTileLayer(
-                  mapType: widget.useSatelliteMap
-                      ? MapTileType.satellite
-                      : MapTileType.osm,
-                  isDarkMode: widget.isMapDark,
-                  userAgentPackageName: 'com.safesky.drone_control',
-                ),
+                // Plain flutter_map TileLayer — no wrapper package.
+                // Satellite = Esri World Imagery (ArcGIS), always keyless.
+                // Street uses CARTO's dark_all/light_all raster styles when
+                // a free CARTO key is supplied (see lib/config/map_keys.dart),
+                // driven by isMapDark (the map's own theme, independent of
+                // the app's isDarkMode). If no key was supplied at build
+                // time, falls back to plain keyless OSM tiles (light only)
+                // instead of showing a broken/watermarked map.
+                widget.useSatelliteMap
+                    ? TileLayer(
+                        urlTemplate:
+                            'https://server.arcgisonline.com/ArcGIS/rest/services/'
+                            'World_Imagery/MapServer/tile/{z}/{y}/{x}',
+                        userAgentPackageName: 'com.safesky.drone_control',
+                        maxNativeZoom: 19,
+                      )
+                    : MapKeys.hasCartoKey
+                    ? TileLayer(
+                        urlTemplate:
+                            'https://basemaps.cartocdn.com/rastertiles/'
+                            '${widget.isMapDark ? "dark_all" : "light_all"}'
+                            '/{z}/{x}/{y}.png?key={key}',
+                        additionalOptions: {'key': MapKeys.cartoApiKey},
+                        userAgentPackageName: 'com.safesky.drone_control',
+                        maxNativeZoom: 19,
+                      )
+                    : TileLayer(
+                        urlTemplate:
+                            'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                        userAgentPackageName: 'com.safesky.drone_control',
+                        maxNativeZoom: 19,
+                      ),
                 if (widget.hasFix)
                   MarkerLayer(
                     markers: [
@@ -116,9 +136,17 @@ class _DroneMapViewState extends State<DroneMapView> {
                 RichAttributionWidget(
                   alignment: AttributionAlignment.bottomLeft,
                   popupInitialDisplayDuration: const Duration(seconds: 3),
-                  attributions: const [
-                    TextSourceAttribution('OpenStreetMap contributors'),
-                    TextSourceAttribution('CARTO'),
+                  attributions: [
+                    if (widget.useSatelliteMap)
+                      const TextSourceAttribution(
+                        'Esri, Maxar, Earthstar Geographics',
+                      )
+                    else if (MapKeys.hasCartoKey)
+                      const TextSourceAttribution(
+                        'CARTO, OpenStreetMap contributors',
+                      )
+                    else
+                      const TextSourceAttribution('OpenStreetMap contributors'),
                   ],
                 ),
               ],
