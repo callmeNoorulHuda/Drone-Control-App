@@ -344,8 +344,8 @@ class _MarkerOption extends StatelessWidget {
           children: [
             SvgPicture.asset(
               style.assetPath,
-              width: 38,
-              height: 38,
+              width: 50,
+              height: 50,
               // Always rendered in the brand orange here, regardless of
               // theme or connection state — this is a picker preview, not
               // the live map marker (which tints amber/gray based on

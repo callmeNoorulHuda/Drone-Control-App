@@ -1,12 +1,7 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import '../theme/app_theme.dart';
 
-/// A panel that can be collapsed down to just its header (drag handle +
-/// header content) by tapping the chevron or swiping down on the header,
-/// and expanded again by tapping or swiping up — same interaction pattern
-/// as pulling down a phone's notification shade, just inverted (collapse
-/// = swipe down here, since these panels sit low/anchored and collapsing
-/// means "tuck the extra content away").
 class CollapsibleCard extends StatefulWidget {
   const CollapsibleCard({
     super.key,
@@ -17,13 +12,8 @@ class CollapsibleCard extends StatefulWidget {
     this.borderRadius,
   });
 
-  /// Content always visible, even when collapsed (e.g. "ARMED" badge or
-  /// the "TELEMETRY" label) — put a short status summary here.
   final Widget header;
-
-  /// Content only visible when expanded.
   final Widget child;
-
   final bool initiallyExpanded;
   final bool compact;
   final double? borderRadius;
@@ -49,80 +39,84 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
     final scheme = Theme.of(context).colorScheme;
     final isDark = scheme.brightness == Brightness.dark;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: scheme.surface.withValues(alpha: 0.94),
-        borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: scheme.outlineVariant),
-        boxShadow: [
-          BoxShadow(
-            color: isDark ? Colors.black38 : Colors.black12,
-            blurRadius: 16,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggle,
-            onVerticalDragEnd: _onDragEnd,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                widget.compact ? 10 : 14,
-                widget.compact ? 8 : 10,
-                widget.compact ? 10 : 14,
-                widget.compact ? 6 : 8,
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(radius),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: 0.8),
+            borderRadius: BorderRadius.circular(radius),
+            border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+            boxShadow: [
+              BoxShadow(
+                color: isDark ? Colors.black45 : Colors.black12,
+                blurRadius: 20,
+                offset: const Offset(0, 8),
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Drag handle — the visual cue this can slide, matching
-                  // the notification-shade affordance.
-                  Container(
-                    width: 32,
-                    height: 4,
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: scheme.outlineVariant,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _toggle,
+                onVerticalDragEnd: _onDragEnd,
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    widget.compact ? 12 : 16,
+                    widget.compact ? 8 : 12,
+                    widget.compact ? 12 : 16,
+                    widget.compact ? 6 : 8,
                   ),
-                  Row(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Expanded(child: widget.header),
-                      Icon(
-                        _expanded
-                            ? Icons.keyboard_arrow_down
-                            : Icons.keyboard_arrow_up,
-                        size: 18,
-                        color: scheme.onSurfaceVariant,
+                      Container(
+                        width: 36,
+                        height: 4,
+                        margin: const EdgeInsets.only(bottom: 10),
+                        decoration: BoxDecoration(
+                          color: scheme.outlineVariant.withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                      Row(
+                        children: [
+                          Expanded(child: widget.header),
+                          Icon(
+                            _expanded
+                                ? Icons.keyboard_arrow_down
+                                : Icons.keyboard_arrow_up,
+                            size: 20,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
+                ),
               ),
-            ),
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOutCubic,
+                alignment: Alignment.topCenter,
+                child: _expanded
+                    ? Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          widget.compact ? 12 : 16,
+                          0,
+                          widget.compact ? 12 : 16,
+                          widget.compact ? 12 : 16,
+                        ),
+                        child: widget.child,
+                      )
+                    : const SizedBox(width: double.infinity, height: 0),
+              ),
+            ],
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeOut,
-            alignment: Alignment.topCenter,
-            child: _expanded
-                ? Padding(
-                    padding: EdgeInsets.fromLTRB(
-                      widget.compact ? 10 : 14,
-                      0,
-                      widget.compact ? 10 : 14,
-                      widget.compact ? 9 : 12,
-                    ),
-                    child: widget.child,
-                  )
-                : const SizedBox(width: double.infinity, height: 0),
-          ),
-        ],
+        ),
       ),
     );
   }

@@ -144,8 +144,8 @@ class _DroneMapViewState extends State<DroneMapView> {
                     if (widget.homeLat != null && widget.homeLon != null)
                       Marker(
                         point: ll.LatLng(widget.homeLat!, widget.homeLon!),
-                        width: 50,
-                        height: 50,
+                        width: 40,
+                        height: 40,
                         child: _HomeMarker(isDarkMode: widget.isDarkMode),
                       ),
                     ...widget.waypoints.asMap().entries.map((entry) {
@@ -178,8 +178,8 @@ class _DroneMapViewState extends State<DroneMapView> {
                     if (widget.hasFix)
                       Marker(
                         point: _point,
-                        width: 60,
-                        height: 60,
+                        width: 120,
+                        height: 120,
                         child: _PositionMarker(
                           headingDegrees: widget.headingDegrees,
                           connected: widget.connected,
@@ -278,16 +278,16 @@ class _PositionMarker extends StatelessWidget {
               ? [
                   BoxShadow(
                     color: color.withValues(alpha: 0.45),
-                    blurRadius: 22,
-                    spreadRadius: 2,
+                    blurRadius: 28,
+                    spreadRadius: 4,
                   ),
                 ]
               : null,
         ),
         child: SvgPicture.asset(
           style.assetPath,
-          width: 32,
-          height: 32,
+          width: 60,
+          height: 60,
           colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
         ),
       ),
@@ -400,38 +400,18 @@ class _HomeMarker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Stack(
-      alignment: Alignment.center,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.blue.withValues(alpha: 0.2),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.blue, width: 2),
-          ),
-        ),
-        const Icon(Icons.home, color: Colors.blue, size: 24),
-        Positioned(
-          bottom: 0,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-              color: Colors.blue,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              'HOME',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 8,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ),
-      ],
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: Colors.blue.withValues(alpha: 0.2),
+        shape: BoxShape.circle,
+        border: Border.all(color: Colors.blue, width: 2),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 2)),
+        ],
+      ),
+      child: const Icon(Icons.home, color: Colors.blue, size: 20),
     );
   }
 }

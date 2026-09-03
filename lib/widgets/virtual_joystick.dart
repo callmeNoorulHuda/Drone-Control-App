@@ -1,23 +1,13 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../state/joystick_controller.dart';
 import '../theme/app_theme.dart';
 import 'package:drone_control/state/vehicle_state.dart';
 import 'package:drone_control/state/connection_status.dart';
 
-/// A draggable virtual joystick. Reports normalized values in [-1, 1] for
-/// both axes via [onChanged], and resets to center on release (matching a
-/// spring-centered gimbal — pass [springBack: false] for a throttle-style
-/// stick that should hold its position, e.g. if you want that behavior).
-///
-/// VehicleState is now read via Provider (context.watch) instead of being
-/// passed in + manually listened to — it's shared app-wide state, so it
-/// belongs in the widget tree above this one (see setup note below).
-///
-/// JoystickController stays a plain constructor param + addListener, same
-/// as TextEditingController or ScrollController — it's a controller owned
-/// per-widget-instance, not global state, so it doesn't belong in Provider.
 class VirtualJoystick extends StatefulWidget {
   const VirtualJoystick({
     super.key,
@@ -39,9 +29,9 @@ class VirtualJoystick extends StatefulWidget {
 }
 
 class _VirtualJoystickState extends State<VirtualJoystick> {
-  Offset _stick = Offset.zero; // normalized, -1..1 on each axis
+  Offset _stick = Offset.zero;
 
-  double get _knobSize => (widget.size * 0.27).clamp(46, 76);
+  double get _knobSize => (widget.size * 0.3).clamp(48, 80);
 
   @override
   void initState() {
@@ -58,7 +48,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     final radius = widget.size / 2;
     final center = Offset(radius, radius);
     var delta = local - center;
-    final maxDist = radius - (_knobSize / 2 + 4);
+    final maxDist = radius - (_knobSize / 2 + 6);
     if (delta.distance > maxDist) {
       delta = Offset.fromDirection(delta.direction, maxDist);
     }
@@ -82,16 +72,9 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
 
   @override
   Widget build(BuildContext context) {
-    // context.watch subscribes this widget to VehicleState automatically —
-    // no manual addListener/removeListener/dispose needed for it anymore.
-    // Whenever VehicleState calls notifyListeners(), this build() re-runs.
     final vehicleState = context.watch<VehicleState>();
     final scheme = Theme.of(context).colorScheme;
 
-    // Same effect as the old _onVehicleStateChanged listener: if we're not
-    // connected, force the stick back to center. This runs as part of
-    // build() now instead of a separate callback, since watch() already
-    // guarantees build() re-runs when connectionStatus changes.
     if (vehicleState.connectionStatus != ConnectionStatus.connected &&
         _stick != Offset.zero) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -104,8 +87,8 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
 
     final radius = widget.size / 2;
     final knob = _knobSize;
-    final travel = radius - (knob / 2 + 4);
-    final arrowInset = radius * 0.10; // how far arrows sit from the edge
+    final travel = radius - (knob / 2 + 6);
+    final arrowInset = radius * 0.15;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -114,90 +97,148 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
           onPanStart: (d) => _updateFromLocal(d.localPosition),
           onPanUpdate: (d) => _updateFromLocal(d.localPosition),
           onPanEnd: (_) => _release(),
-          child: Container(
-            width: widget.size,
-            height: widget.size,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: scheme.surface,
-              border: Border.all(color: scheme.outlineVariant, width: 2),
-            ),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                // crosshair
-                Container(
-                  width: 1,
-                  height: widget.size,
-                  color: scheme.outlineVariant,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Outer Glow
+              Container(
+                width: widget.size,
+                height: widget.size,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: scheme.primary.withValues(alpha: 0.1),
+                      blurRadius: 20,
+                      spreadRadius: 2,
+                    ),
+                  ],
                 ),
-                Container(
-                  width: widget.size,
-                  height: 1,
-                  color: scheme.outlineVariant,
-                ),
-                // NEW: directional arrows at N / S / E / W
-                Positioned(
-                  top: arrowInset,
-                  child: Icon(
-                    Icons.keyboard_arrow_up,
-                    color: scheme.onSurfaceVariant,
-                    size: 22,
-                  ),
-                ),
-                Positioned(
-                  bottom: arrowInset,
-                  child: Icon(
-                    Icons.keyboard_arrow_down,
-                    color: scheme.onSurfaceVariant,
-                    size: 22,
-                  ),
-                ),
-                Positioned(
-                  left: arrowInset,
-                  child: Icon(
-                    Icons.keyboard_arrow_left,
-                    color: scheme.onSurfaceVariant,
-                    size: 22,
-                  ),
-                ),
-                Positioned(
-                  right: arrowInset,
-                  child: Icon(
-                    Icons.keyboard_arrow_right,
-                    color: scheme.onSurfaceVariant,
-                    size: 22,
-                  ),
-                ),
-                // stick knob
-                Transform.translate(
-                  offset: Offset(_stick.dx * travel, _stick.dy * travel),
+              ),
+              // Glass Background
+              ClipOval(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
                   child: Container(
-                    width: knob,
-                    height: knob,
+                    width: widget.size,
+                    height: widget.size,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: AppColors.amber,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.amber.withValues(alpha: 0.4),
-                          blurRadius: 12,
-                        ),
-                      ],
+                      color: scheme.surface.withValues(alpha: 0.4),
+                      border: Border.all(
+                        color: scheme.outlineVariant.withValues(alpha: 0.5),
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              // Crosshair Lines
+              Container(
+                width: 1,
+                height: widget.size - 20,
+                color: scheme.outlineVariant.withValues(alpha: 0.3),
+              ),
+              Container(
+                width: widget.size - 20,
+                height: 1,
+                color: scheme.outlineVariant.withValues(alpha: 0.3),
+              ),
+              // Directional Markers
+              Positioned(
+                top: arrowInset,
+                child: Icon(
+                  Icons.north,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  size: 14,
+                ),
+              ),
+              Positioned(
+                bottom: arrowInset,
+                child: Icon(
+                  Icons.south,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  size: 14,
+                ),
+              ),
+              Positioned(
+                left: arrowInset,
+                child: Icon(
+                  Icons.west,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  size: 14,
+                ),
+              ),
+              Positioned(
+                right: arrowInset,
+                child: Icon(
+                  Icons.east,
+                  color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                  size: 14,
+                ),
+              ),
+              // Stick Knob with Pulse Effect
+              Transform.translate(
+                offset: Offset(_stick.dx * travel, _stick.dy * travel),
+                child:
+                    Container(
+                          width: knob,
+                          height: knob,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: RadialGradient(
+                              colors: [
+                                AppColors.amber,
+                                AppColors.amber.withValues(alpha: 0.8),
+                              ],
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppColors.amber.withValues(alpha: 0.4),
+                                blurRadius: 15,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: Center(
+                            child: Container(
+                              width: knob * 0.4,
+                              height: knob * 0.4,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.white.withValues(alpha: 0.3),
+                              ),
+                            ),
+                          ),
+                        )
+                        .animate(onPlay: (c) => c.repeat(reverse: true))
+                        .scale(
+                          begin: const Offset(1, 1),
+                          end: const Offset(1.05, 1.05),
+                          duration: 2.seconds,
+                        ),
+              ),
+            ],
           ),
         ),
-        SizedBox(height: widget.size < 130 ? 4 : 8),
-        Text(
-          widget.label.tr(),
-          style: TextStyle(
-            fontSize: widget.size < 130 ? 9.5 : 12,
-            letterSpacing: 0.8,
-            color: scheme.onSurfaceVariant,
+        SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: scheme.surface.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: scheme.outlineVariant.withValues(alpha: 0.3),
+            ),
+          ),
+          child: Text(
+            widget.label.tr().toUpperCase(),
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1.5,
+              color: scheme.onSurface,
+            ),
           ),
         ),
       ],

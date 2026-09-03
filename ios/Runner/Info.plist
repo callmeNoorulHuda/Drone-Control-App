@@ -28,6 +28,8 @@
 	<string>This app needs camera access to show the drone feed placeholder.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app needs microphone access for the video feed placeholder.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app connects to the drone over local WiFi to receive telemetry and send commands.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

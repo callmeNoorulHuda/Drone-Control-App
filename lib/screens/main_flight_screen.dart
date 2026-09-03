@@ -447,7 +447,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                             wifiRangeMeters: vehicleState.wifiRangeMeters,
                             showSearch: !_manualMode,
                           ),
-                          if (vehicleState.connectionLost &&
+                          if (!_manualMode &&
+                              vehicleState.connectionLost &&
                               !_dismissedConnectionOverlay)
                             _ConnectionLostOverlay(
                               vehicleState: vehicleState,
@@ -755,73 +756,119 @@ class _ConnectionLostOverlay extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
     return Positioned.fill(
       child: Container(
-        color: Colors.black54,
+        color: Colors.black.withValues(alpha: 0.7),
         child: Center(
           child: Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(24),
             margin: const EdgeInsets.all(32),
+            constraints: const BoxConstraints(maxWidth: 450),
             decoration: BoxDecoration(
               color: scheme.surface,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.danger, width: 2),
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 30,
+                  spreadRadius: 5,
+                ),
+              ],
             ),
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Icon(
-                          Icons.signal_wifi_off,
+                          Icons.signal_wifi_off_rounded,
                           color: AppColors.danger,
-                          size: 32,
+                          size: 36,
                         ),
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 16),
                         Text(
                           'connection_lost'.tr().toUpperCase(),
                           style: const TextStyle(
                             color: AppColors.danger,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1.2,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'last_telemetry_received'.tr(
-                        namedArgs: {
-                          'time':
-                              vehicleState.lastTelemetryTime
-                                  ?.toIso8601String()
-                                  .split('T')
-                                  .last
-                                  .substring(0, 8) ??
-                              '--',
-                        },
+                    const SizedBox(height: 20),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
                       ),
-                      style: TextStyle(color: scheme.onSurfaceVariant),
+                      decoration: BoxDecoration(
+                        color: scheme.onSurface.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'last_telemetry_received'.tr(
+                          namedArgs: {
+                            'time':
+                                vehicleState.lastTelemetryTime
+                                    ?.toIso8601String()
+                                    .split('T')
+                                    .last
+                                    .substring(0, 8) ??
+                                '--',
+                          },
+                        ),
+                        style: TextStyle(
+                          color: scheme.onSurfaceVariant,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 16),
-                    _LastTelemetryGrid(vehicleState: vehicleState),
                     const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: () => context
-                          .read<ConnectionManager>()
-                          .connect(ip: '192.168.4.1', port: 14550),
-                      child: Text('reconnect'.tr().toUpperCase()),
+                    _LastTelemetryGrid(vehicleState: vehicleState),
+                    const SizedBox(height: 32),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.amber,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => context
+                            .read<ConnectionManager>()
+                            .connect(ip: '192.168.4.1', port: 14550),
+                        child: Text(
+                          'reconnect'.tr().toUpperCase(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 1,
+                          ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
                 Positioned(
-                  right: -8,
-                  top: -8,
-                  child: IconButton(
-                    icon: const Icon(Icons.close),
-                    onPressed: onDismiss,
-                    color: scheme.onSurfaceVariant,
+                  right: -16,
+                  top: -16,
+                  child: Material(
+                    color: scheme.surface,
+                    elevation: 4,
+                    shape: const CircleBorder(),
+                    child: IconButton(
+                      icon: const Icon(Icons.close, size: 28),
+                      onPressed: onDismiss,
+                      color: scheme.onSurface,
+                      padding: const EdgeInsets.all(8),
+                      constraints: const BoxConstraints(),
+                    ),
                   ),
                 ),
               ],
