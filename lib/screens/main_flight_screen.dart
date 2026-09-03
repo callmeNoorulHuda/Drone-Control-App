@@ -47,6 +47,10 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   Offset _rightStick = Offset.zero;
   Timer? _controlTimer;
 
+  // --- Side Panel Draggable State -----------------------------------
+  double? _draggedPanelWidth;
+  bool _sidePanelVisible = true;
+
   // --- Battery warning/critical dialog state -------------------------
   // Warning: pop a confirm-or-cancel RTL dialog. Re-prompts every extra
   // _batteryRepromptStep percent the battery drops past the last time we
@@ -349,7 +353,15 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     // both; only the numbers scale, per Noor's request.
     final tablet = isTabletLayout(context);
     final gap = tablet ? 12.0 : 4.0;
-    final sidePanelWidth = tablet ? 260.0 : 135.0;
+
+    final defaultSidePanelWidth = tablet ? 260.0 : 135.0;
+    final minPanelWidth = tablet ? 100.0 : 60.0;
+    final maxPanelWidth = tablet ? 500.0 : 250.0;
+
+    final currentPanelWidth = _sidePanelVisible
+        ? (_draggedPanelWidth ?? defaultSidePanelWidth)
+        : 0.0;
+
     final joystickSize = tablet ? 200.0 : 136.0;
     final edgeInset = tablet ? 20.0 : 12.0;
     final scheme = Theme.of(context).colorScheme;
@@ -484,27 +496,109 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                               ),
                             ),
                           ],
+
+                          // --- DRAG HANDLE / PULL TRIGGER ----------------
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.translucent,
+                              onHorizontalDragUpdate: (details) {
+                                setState(() {
+                                  if (!_sidePanelVisible) {
+                                    // Pulling out from the right edge
+                                    if (details.delta.dx < -5) {
+                                      _sidePanelVisible = true;
+                                      _draggedPanelWidth =
+                                          defaultSidePanelWidth;
+                                    }
+                                  } else {
+                                    // Resizing
+                                    final baseWidth =
+                                        _draggedPanelWidth ??
+                                        defaultSidePanelWidth;
+                                    final newWidth =
+                                        (baseWidth - details.delta.dx);
+
+                                    if (newWidth < 40) {
+                                      _sidePanelVisible = false;
+                                      _draggedPanelWidth = 0.0;
+                                    } else {
+                                      _draggedPanelWidth = newWidth.clamp(
+                                        minPanelWidth,
+                                        maxPanelWidth,
+                                      );
+                                    }
+                                  }
+                                });
+                              },
+                              child: Container(
+                                width: 32, // Large enough grab area
+                                color: Colors.transparent,
+                                child: Center(
+                                  child: Container(
+                                    width: 24,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: scheme.surface.withValues(
+                                        alpha: 0.8,
+                                      ),
+                                      borderRadius: const BorderRadius.only(
+                                        topLeft: Radius.circular(8),
+                                        bottomLeft: Radius.circular(8),
+                                      ),
+                                      border: Border.all(
+                                        color: scheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: IconButton(
+                                      padding: EdgeInsets.zero,
+                                      icon: Icon(
+                                        _sidePanelVisible
+                                            ? Icons.chevron_right
+                                            : Icons.chevron_left,
+                                        size: 20,
+                                        color: scheme.primary,
+                                      ),
+                                      onPressed: () {
+                                        setState(() {
+                                          _sidePanelVisible =
+                                              !_sidePanelVisible;
+                                          if (_sidePanelVisible) {
+                                            _draggedPanelWidth =
+                                                defaultSidePanelWidth;
+                                          }
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
                   ),
 
-                  // RIGHT: fixed-width side panel — camera feed on top,
-                  // telemetry below. Always visible in both modes.
-                  SizedBox(
-                    width: sidePanelWidth,
-                    child: Padding(
-                      padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          CameraFeedPanel(connected: true, compact: !tablet),
-                          SizedBox(height: gap),
-                          Expanded(child: TelemetryPanel(compact: !tablet)),
-                        ],
+                  // RIGHT: side panel — camera feed on top, telemetry below.
+                  // Width is dynamic, and can be hidden (0 width).
+                  if (currentPanelWidth > 0)
+                    SizedBox(
+                      width: currentPanelWidth,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            CameraFeedPanel(connected: true, compact: !tablet),
+                            SizedBox(height: gap),
+                            Expanded(child: TelemetryPanel(compact: !tablet)),
+                          ],
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
