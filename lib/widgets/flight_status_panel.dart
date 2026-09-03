@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../connection/connection_manager.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -36,27 +37,28 @@ class FlightStatusPanel extends StatelessWidget {
   final bool compact;
 
   Future<void> _confirmArm(BuildContext context, bool arm) async {
+    final scheme = Theme.of(context).colorScheme;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceRaised,
-        title: Text(arm ? 'Arm motors?' : 'Disarm motors?'),
+        backgroundColor: scheme.surface,
+        title: Text(arm ? 'arm_motors_q'.tr() : 'disarm_motors_q'.tr()),
         content: Text(
-          arm
-              ? 'Propellers will be able to spin once armed.'
-              : 'This will stop the motors immediately.',
+          arm ? 'prop_spin_warning'.tr() : 'prop_stop_warning'.tr(),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('cancel'.tr()),
           ),
           FilledButton(
             style: FilledButton.styleFrom(
-              backgroundColor: arm ? AppColors.danger : AppColors.surface,
+              backgroundColor: arm ? AppColors.danger : AppColors.amber,
             ),
             onPressed: () => Navigator.pop(context, true),
-            child: Text(arm ? 'Arm' : 'Disarm'),
+            child: Text(
+              arm ? 'arm'.tr().toUpperCase() : 'disarm'.tr().toUpperCase(),
+            ),
           ),
         ],
       ),
@@ -70,6 +72,7 @@ class FlightStatusPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final vehicleState = context.watch<VehicleState>();
     final connectionManager = context.read<ConnectionManager>();
+    final scheme = Theme.of(context).colorScheme;
 
     return Opacity(
       opacity: enabled ? 1 : 0.4,
@@ -80,7 +83,9 @@ class FlightStatusPanel extends StatelessWidget {
           child: CollapsibleCard(
             compact: compact,
             header: Text(
-              vehicleState.armed ? 'ARMED' : 'DISARMED',
+              vehicleState.armed
+                  ? 'armed'.tr().toUpperCase()
+                  : 'disarmed'.tr().toUpperCase(),
               style: TextStyle(
                 color: vehicleState.armed
                     ? AppColors.danger
@@ -105,7 +110,9 @@ class FlightStatusPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
-                      vehicleState.armed ? 'DISARM' : 'ARM',
+                      vehicleState.armed
+                          ? 'disarm'.tr().toUpperCase()
+                          : 'arm'.tr().toUpperCase(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.white,
@@ -120,9 +127,9 @@ class FlightStatusPanel extends StatelessWidget {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'FLIGHT MODE',
+                    'flight_mode'.tr().toUpperCase(),
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: scheme.onSurfaceVariant,
                       fontSize: compact ? 9 : 10,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 1,
@@ -149,7 +156,7 @@ class FlightStatusPanel extends StatelessWidget {
                             border: Border.all(
                               color: active
                                   ? Colors.transparent
-                                  : AppColors.hairline,
+                                  : scheme.outlineVariant,
                             ),
                           ),
                           child: Text(
@@ -161,7 +168,7 @@ class FlightStatusPanel extends StatelessWidget {
                               fontWeight: FontWeight.w600,
                               color: active
                                   ? AppColors.cyan
-                                  : AppColors.textSecondary,
+                                  : scheme.onSurfaceVariant,
                             ),
                           ),
                         ),
@@ -181,7 +188,7 @@ class FlightStatusPanel extends StatelessWidget {
                       border: Border.all(color: AppColors.cyan),
                     ),
                     child: Text(
-                      'RETURN HOME',
+                      'return_home'.tr().toUpperCase(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: AppColors.cyan,

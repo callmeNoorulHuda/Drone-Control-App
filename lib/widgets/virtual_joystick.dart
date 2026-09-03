@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/joystick_controller.dart';
 import '../theme/app_theme.dart';
 import 'package:drone_control/state/vehicle_state.dart';
@@ -85,6 +86,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
     // no manual addListener/removeListener/dispose needed for it anymore.
     // Whenever VehicleState calls notifyListeners(), this build() re-runs.
     final vehicleState = context.watch<VehicleState>();
+    final scheme = Theme.of(context).colorScheme;
 
     // Same effect as the old _onVehicleStateChanged listener: if we're not
     // connected, force the stick back to center. This runs as part of
@@ -117,8 +119,8 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
             height: widget.size,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AppColors.surface,
-              border: Border.all(color: AppColors.hairline, width: 2),
+              color: scheme.surface,
+              border: Border.all(color: scheme.outlineVariant, width: 2),
             ),
             child: Stack(
               alignment: Alignment.center,
@@ -127,19 +129,19 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
                 Container(
                   width: 1,
                   height: widget.size,
-                  color: AppColors.hairline,
+                  color: scheme.outlineVariant,
                 ),
                 Container(
                   width: widget.size,
                   height: 1,
-                  color: AppColors.hairline,
+                  color: scheme.outlineVariant,
                 ),
                 // NEW: directional arrows at N / S / E / W
                 Positioned(
                   top: arrowInset,
                   child: Icon(
                     Icons.keyboard_arrow_up,
-                    color: AppColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     size: 22,
                   ),
                 ),
@@ -147,7 +149,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
                   bottom: arrowInset,
                   child: Icon(
                     Icons.keyboard_arrow_down,
-                    color: AppColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     size: 22,
                   ),
                 ),
@@ -155,7 +157,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
                   left: arrowInset,
                   child: Icon(
                     Icons.keyboard_arrow_left,
-                    color: AppColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     size: 22,
                   ),
                 ),
@@ -163,7 +165,7 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
                   right: arrowInset,
                   child: Icon(
                     Icons.keyboard_arrow_right,
-                    color: AppColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     size: 22,
                   ),
                 ),
@@ -191,11 +193,11 @@ class _VirtualJoystickState extends State<VirtualJoystick> {
         ),
         SizedBox(height: widget.size < 130 ? 4 : 8),
         Text(
-          widget.label,
+          widget.label.tr(),
           style: TextStyle(
             fontSize: widget.size < 130 ? 9.5 : 12,
             letterSpacing: 0.8,
-            color: AppColors.textSecondary,
+            color: scheme.onSurfaceVariant,
           ),
         ),
       ],

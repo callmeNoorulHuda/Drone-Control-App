@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../theme/app_theme.dart';
 
 /// Pill-style segmented toggle between Manual and Auto flight control.
@@ -21,27 +22,28 @@ class ModeToggle extends StatelessWidget {
     final height = compact ? 26.0 : 30.0;
     final fontSize = compact ? 9.5 : 11.0;
     final hPad = compact ? 9.0 : 13.0;
+    final scheme = Theme.of(context).colorScheme;
 
     return Container(
       height: height,
       padding: const EdgeInsets.all(3),
       decoration: BoxDecoration(
-        color: AppColors.bg,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(height),
-        border: Border.all(color: AppColors.hairline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _Segment(
-            label: 'MANUAL',
+            label: 'manual'.tr().toUpperCase(),
             active: manual,
             onTap: () => onChanged(true),
             fontSize: fontSize,
             hPad: hPad,
           ),
           _Segment(
-            label: 'AUTO',
+            label: 'auto'.tr().toUpperCase(),
             active: !manual,
             onTap: () => onChanged(false),
             fontSize: fontSize,
@@ -70,6 +72,7 @@ class _Segment extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -87,7 +90,7 @@ class _Segment extends StatelessWidget {
             fontSize: fontSize,
             fontWeight: FontWeight.w800,
             letterSpacing: 0.4,
-            color: active ? Colors.white : AppColors.textSecondary,
+            color: active ? Colors.white : scheme.onSurfaceVariant,
           ),
         ),
       ),

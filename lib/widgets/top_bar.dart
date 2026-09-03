@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../screens/settings_screen.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -34,15 +35,17 @@ class TopBar extends StatelessWidget {
     // rebuild whenever it changes — same effect as the old constructor
     // param, just sourced from the tree instead of passed in.
     final vehicleState = context.watch<VehicleState>();
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: compact ? 10 : 16,
         vertical: compact ? 5 : 8,
       ),
-      decoration: const BoxDecoration(
-        color: AppColors.surface,
-        border: Border(bottom: BorderSide(color: AppColors.hairline)),
+      decoration: BoxDecoration(
+        color: scheme.surface,
+        border: Border(bottom: BorderSide(color: scheme.outlineVariant)),
       ),
       child: Row(
         children: [
@@ -51,9 +54,9 @@ class TopBar extends StatelessWidget {
           SizedBox(width: compact ? 6 : 10),
           if (!compact || MediaQuery.of(context).size.width > 500)
             Text(
-              'SafeSky Nexus',
+              'app_title'.tr(),
               style: TextStyle(
-                color: AppColors.textPrimary,
+                color: scheme.onSurface,
                 fontSize: compact ? 13 : 16,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
@@ -79,7 +82,7 @@ class TopBar extends StatelessWidget {
             ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
             child: Icon(
               Icons.settings_outlined,
-              color: AppColors.textSecondary,
+              color: scheme.onSurfaceVariant,
               size: compact ? 17 : 20,
             ),
           ),

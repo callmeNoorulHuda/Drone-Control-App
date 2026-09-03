@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../connection/connection_manager.dart';
 import '../state/connection_status.dart';
 import '../state/joystick_controller.dart';
@@ -206,24 +207,22 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   }
 
   Future<void> _showConnectionTimeoutDialog() async {
+    final scheme = Theme.of(context).colorScheme;
     final shouldRetry = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceRaised,
-        title: const Text('Connection Timed Out'),
-        content: const Text(
-          'No response was received from the vehicle. Check that it\'s '
-          'powered on and in range, then try again.',
-        ),
+        backgroundColor: scheme.surface,
+        title: Text('connection_timeout'.tr()),
+        content: Text('connection_timeout_msg'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Dismiss'),
+            child: Text('dismiss'.tr()),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Retry'),
+            child: Text('retry'.tr()),
           ),
         ],
       ),
@@ -247,10 +246,8 @@ class _MainFlightScreenState extends State<MainFlightScreen>
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Critical battery — returning to launch automatically.',
-              ),
+            SnackBar(
+              content: Text('critical_battery_msg'.tr()),
               backgroundColor: AppColors.danger,
               behavior: SnackBarBehavior.floating,
             ),
@@ -279,24 +276,27 @@ class _MainFlightScreenState extends State<MainFlightScreen>
 
   Future<void> _showBatteryDialog(double percent) async {
     _batteryDialogShowing = true;
+    final scheme = Theme.of(context).colorScheme;
     final shouldReturn = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
       builder: (context) => AlertDialog(
-        backgroundColor: AppColors.surfaceRaised,
-        title: const Text('Battery Low'),
+        backgroundColor: scheme.surface,
+        title: Text('battery_low'.tr()),
         content: Text(
-          'Battery at ${percent.toStringAsFixed(0)}%. Return to launch now?',
+          'battery_rtl_msg'.tr(
+            namedArgs: {'percent': percent.toStringAsFixed(0)},
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text('cancel'.tr()),
           ),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('RTL'),
+            child: Text('rtl'.tr().toUpperCase()),
           ),
         ],
       ),
@@ -352,9 +352,10 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     final sidePanelWidth = tablet ? 260.0 : 135.0;
     final joystickSize = tablet ? 200.0 : 136.0;
     final edgeInset = tablet ? 20.0 : 12.0;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: scheme.surface,
       body: SafeArea(
         left: false,
         child: Column(
@@ -382,6 +383,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                             connected: connected,
                             hasFix: hasFix,
                             isDarkMode: settings.isDarkMode,
+                            isMapDark: settings.isMapDark,
                             markerStyle: settings.markerStyle,
                             useSatelliteMap: settings.useSatelliteMap,
                           ),
@@ -402,14 +404,14 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                           vertical: 4,
                                         ),
                                         decoration: BoxDecoration(
-                                          color: AppColors.surface.withValues(
+                                          color: scheme.surface.withValues(
                                             alpha: 0.8,
                                           ),
                                           borderRadius: BorderRadius.circular(
                                             8,
                                           ),
                                           border: Border.all(
-                                            color: AppColors.hairline,
+                                            color: scheme.outlineVariant,
                                           ),
                                         ),
                                         child: Text(
@@ -426,14 +428,14 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                       settings.joystickStyle ==
                                               JoystickStyle.arrows
                                           ? ArrowJoystick(
-                                              label: 'THROTTLE / YAW',
+                                              label: 'throttle_yaw',
                                               size: joystickSize,
                                               springBack: false,
                                               onChanged: _onLeftStick,
                                               controller: _leftController,
                                             )
                                           : VirtualJoystick(
-                                              label: 'THROTTLE / YAW',
+                                              label: 'throttle_yaw',
                                               size: joystickSize,
                                               springBack: false,
                                               onChanged: _onLeftStick,
@@ -467,13 +469,13 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                       settings.joystickStyle ==
                                           JoystickStyle.arrows
                                       ? ArrowJoystick(
-                                          label: 'PITCH / ROLL',
+                                          label: 'pitch_roll',
                                           size: joystickSize,
                                           onChanged: _onRightStick,
                                           controller: _rightController,
                                         )
                                       : VirtualJoystick(
-                                          label: 'PITCH / ROLL',
+                                          label: 'pitch_roll',
                                           size: joystickSize,
                                           onChanged: _onRightStick,
                                           controller: _rightController,

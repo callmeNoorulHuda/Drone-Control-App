@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import 'connection/connection_manager.dart';
 import 'screens/splash_screen.dart';
 import 'state/settings_controller.dart';
@@ -8,7 +9,21 @@ import 'theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const DroneControlApp());
+  await EasyLocalization.ensureInitialized();
+
+  runApp(
+    EasyLocalization(
+      supportedLocales: const [
+        Locale('en'),
+        Locale('ur'),
+        Locale('zh'),
+        Locale('es'),
+      ],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('en'),
+      child: const DroneControlApp(),
+    ),
+  );
 }
 
 class DroneControlApp extends StatefulWidget {
@@ -58,6 +73,9 @@ class _AppShell extends StatelessWidget {
 
     return MaterialApp(
       title: 'SafeSky Nexus',
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
       debugShowCheckedModeBanner: false,
       theme: buildAppLightTheme(),
       darkTheme: buildAppTheme(),

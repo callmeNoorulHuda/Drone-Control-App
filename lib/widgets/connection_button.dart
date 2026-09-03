@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/connection_status.dart';
 import '../theme/app_theme.dart';
 
@@ -68,6 +69,7 @@ class _ConnectionButtonState extends State<ConnectionButton>
     final bool connecting = widget.status == ConnectionStatus.connecting;
     final bool error =
         widget.status == ConnectionStatus.timedOut || widget.connectionLost;
+    final scheme = Theme.of(context).colorScheme;
 
     final Color statusColor = connected
         ? AppColors.success
@@ -75,17 +77,17 @@ class _ConnectionButtonState extends State<ConnectionButton>
         ? AppColors.amber
         : error
         ? AppColors.danger
-        : AppColors.textSecondary;
+        : scheme.onSurfaceVariant;
 
     final String label = connected
-        ? 'Connected'
+        ? 'connect'.tr()
         : connecting
-        ? 'Connecting...'
+        ? 'connecting'.tr()
         : widget.connectionLost
-        ? 'Connection Lost'
+        ? 'connection_lost'.tr()
         : widget.status == ConnectionStatus.timedOut
-        ? 'Timed Out'
-        : 'Connect';
+        ? 'timed_out'.tr()
+        : 'connect'.tr();
 
     return GestureDetector(
       onTap: widget.onTap,

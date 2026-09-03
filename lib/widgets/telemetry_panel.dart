@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
@@ -31,6 +32,9 @@ class TelemetryPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final vehicleState = context.watch<VehicleState>();
     final units = context.watch<SettingsController>().unitSystem;
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
     final hasFix =
@@ -52,14 +56,14 @@ class TelemetryPanel extends StatelessWidget {
           compact ? 9 : 12,
         ),
         decoration: BoxDecoration(
-          color: AppColors.surface.withValues(alpha: 0.94),
+          color: scheme.surface.withValues(alpha: 0.94),
           borderRadius: BorderRadius.circular(compact ? 12 : 16),
-          border: Border.all(color: AppColors.hairline),
-          boxShadow: const [
+          border: Border.all(color: scheme.outlineVariant),
+          boxShadow: [
             BoxShadow(
-              color: Colors.black38,
+              color: isDark ? Colors.black38 : Colors.black12,
               blurRadius: 10,
-              offset: Offset(0, 10),
+              offset: const Offset(0, 10),
             ),
           ],
         ),
@@ -74,9 +78,9 @@ class TelemetryPanel extends StatelessWidget {
                 child: Padding(
                   padding: EdgeInsets.only(bottom: compact ? 8 : 12),
                   child: Text(
-                    'TELEMETRY',
+                    'telemetry'.tr().toUpperCase(),
                     style: TextStyle(
-                      color: AppColors.textSecondary,
+                      color: scheme.onSurfaceVariant,
                       fontSize: compact ? 12 : 14,
                       fontWeight: FontWeight.w800,
                       letterSpacing: 1.5,
@@ -86,7 +90,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.battery_full,
-                label: 'Battery',
+                label: 'battery'.tr(),
                 value: connected
                     ? '${(vehicleState.batteryPercent ?? 0).toStringAsFixed(0)}%'
                     : '--',
@@ -94,7 +98,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.height,
-                label: 'Altitude',
+                label: 'altitude'.tr(),
                 value: connected
                     ? units.formatDistance(vehicleState.altitudeMeters ?? 0)
                     : '--',
@@ -102,7 +106,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.speed,
-                label: 'Speed',
+                label: 'speed'.tr(),
                 value: connected
                     ? units.formatSpeed(vehicleState.speedMps ?? 0)
                     : '--',
@@ -112,7 +116,7 @@ class TelemetryPanel extends StatelessWidget {
                 icon: (vehicleState.verticalSpeedMps ?? 0) < 0
                     ? Icons.south
                     : Icons.north,
-                label: 'V. Speed',
+                label: 'v_speed'.tr(),
                 value: connected
                     ? units.formatVerticalSpeed(
                         vehicleState.verticalSpeedMps ?? 0,
@@ -122,7 +126,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.explore,
-                label: 'Heading',
+                label: 'heading'.tr(),
                 value: connected
                     ? '${(vehicleState.headingDegrees ?? 0).toStringAsFixed(0)}°'
                     : '--',
@@ -130,13 +134,13 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: hasFix ? Icons.gps_fixed : Icons.gps_not_fixed,
-                label: 'GPS',
+                label: 'gps'.tr(),
                 value: connected ? (hasFix ? 'Fix' : 'No Fix') : '--',
                 compact: compact,
               ),
               _TelemetryRow(
                 icon: Icons.social_distance,
-                label: 'Dist. Home',
+                label: 'dist_home'.tr(),
                 value: connected && distanceToHome != null
                     ? units.formatDistance(distanceToHome)
                     : '--',
@@ -144,7 +148,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.assistant_navigation,
-                label: 'Brg. Home',
+                label: 'brg_home'.tr(),
                 value: connected && bearingToHome != null
                     ? '${bearingToHome.toStringAsFixed(0)}°'
                     : '--',
@@ -152,7 +156,7 @@ class TelemetryPanel extends StatelessWidget {
               ),
               _TelemetryRow(
                 icon: Icons.timer_outlined,
-                label: 'Flight Time',
+                label: 'flight_time'.tr(),
                 value: connected && flightDuration != null
                     ? _formatDuration(flightDuration)
                     : '--',
@@ -184,6 +188,7 @@ class _TelemetryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Column(
       children: [
         Padding(
@@ -193,14 +198,14 @@ class _TelemetryRow extends StatelessWidget {
               Icon(
                 icon,
                 size: compact ? 14 : 16,
-                color: AppColors.textSecondary.withValues(alpha: 0.8),
+                color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   label.toUpperCase(),
                   style: TextStyle(
-                    color: AppColors.textSecondary,
+                    color: scheme.onSurfaceVariant,
                     fontSize: compact ? 10 : 11,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 0.5,
@@ -211,6 +216,7 @@ class _TelemetryRow extends StatelessWidget {
                 value,
                 style: telemetryNumberStyle.copyWith(
                   fontSize: compact ? 13 : 15,
+                  color: scheme.secondary,
                 ),
               ),
             ],
@@ -220,7 +226,7 @@ class _TelemetryRow extends StatelessWidget {
           Container(
             height: 1,
             margin: const EdgeInsets.symmetric(horizontal: 2),
-            color: AppColors.hairline.withValues(alpha: 0.5),
+            color: scheme.outlineVariant.withValues(alpha: 0.5),
           ),
       ],
     );

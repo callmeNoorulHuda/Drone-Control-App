@@ -1,5 +1,6 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../theme/app_theme.dart';
 import '../screens/camera_detail_screen.dart';
 
@@ -63,6 +64,7 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: () => Navigator.of(context).push(
         MaterialPageRoute(
@@ -75,19 +77,21 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
           borderRadius: BorderRadius.circular(widget.compact ? 12 : 16),
           child: Container(
             decoration: BoxDecoration(
-              color: AppColors.surface,
-              border: Border.all(color: AppColors.hairline),
+              color: scheme.surface,
+              border: Border.all(color: scheme.outlineVariant),
             ),
             child: Stack(
               fit: StackFit.expand,
               children: [
                 // 1. Base Layer: Static Gradient (Fallback if camera fails)
                 Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
-                      colors: [Color(0xFF17233D), Color(0xFF0C1122)],
+                      colors: scheme.brightness == Brightness.dark
+                          ? const [Color(0xFF17233D), Color(0xFF0C1122)]
+                          : const [Color(0xFFE0E4F0), Color(0xFFF4F6FB)],
                     ),
                   ),
                 ),
@@ -105,7 +109,7 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
                           ? Icons.videocam_outlined
                           : Icons.videocam_off_outlined,
                       size: widget.compact ? 20 : 28,
-                      color: AppColors.textSecondary,
+                      color: scheme.onSurfaceVariant,
                     ),
                   ),
 
@@ -124,7 +128,7 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Text(
-                        'LIVE',
+                        'live'.tr().toUpperCase(),
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: widget.compact ? 8 : 9,
@@ -140,10 +144,10 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
                     left: 0,
                     right: 0,
                     child: Text(
-                      'NO SIGNAL',
+                      'no_signal'.tr().toUpperCase(),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: AppColors.textSecondary,
+                        color: scheme.onSurfaceVariant,
                         fontSize: widget.compact ? 8 : 9,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.6,

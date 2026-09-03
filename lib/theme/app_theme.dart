@@ -21,6 +21,13 @@ class AppColors {
 
   static const danger = Color(0xFFE05B4F);
   static const success = Color(0xFF57C785);
+
+  // Light mode specific
+  static const lightBg = Color(0xFFF4F6FB);
+  static const lightSurface = Color(0xFFFFFFFF);
+  static const lightHairline = Color(0xFFE0E4F0);
+  static const lightTextPrimary = Color(0xFF11151F);
+  static const lightTextSecondary = Color(0xFF6A7191);
 }
 
 /// Telemetry numbers use tighter letter-spacing + a monospace fallback
@@ -77,32 +84,33 @@ ThemeData buildAppTheme() {
 /// ask if you want that done next.
 ThemeData buildAppLightTheme() {
   final base = ThemeData.light(useMaterial3: true);
-  const lightBg = Color(0xFFF4F6FB);
-  const lightSurface = Color(0xFFFFFFFF);
-  const lightText = Color(0xFF11151F);
   return base.copyWith(
-    scaffoldBackgroundColor: lightBg,
+    scaffoldBackgroundColor: AppColors.lightBg,
     colorScheme: base.colorScheme.copyWith(
       primary: AppColors.amber,
       secondary: AppColors.cyan,
-      surface: lightSurface,
+      surface: AppColors.lightSurface,
+      onSurface: AppColors.lightTextPrimary,
+      onSurfaceVariant: AppColors.lightTextSecondary,
+      outlineVariant: AppColors.lightHairline,
       error: AppColors.danger,
     ),
     appBarTheme: const AppBarTheme(
-      backgroundColor: lightBg,
+      backgroundColor: AppColors.lightBg,
       elevation: 0,
       centerTitle: false,
+      iconTheme: IconThemeData(color: AppColors.lightTextPrimary),
       titleTextStyle: TextStyle(
-        color: lightText,
+        color: AppColors.lightTextPrimary,
         fontSize: 20,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.3,
       ),
     ),
     textTheme: base.textTheme.apply(
-      bodyColor: lightText,
-      displayColor: lightText,
+      bodyColor: AppColors.lightTextPrimary,
+      displayColor: AppColors.lightTextPrimary,
     ),
-    dividerColor: Colors.black12,
+    dividerColor: AppColors.lightHairline,
   );
 }

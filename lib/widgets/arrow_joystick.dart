@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/joystick_controller.dart';
 import '../theme/app_theme.dart';
 import 'package:drone_control/state/vehicle_state.dart';
@@ -75,6 +76,7 @@ class _ArrowJoystickState extends State<ArrowJoystick> {
   @override
   Widget build(BuildContext context) {
     final vehicleState = context.watch<VehicleState>();
+    final scheme = Theme.of(context).colorScheme;
 
     if (vehicleState.connectionStatus != ConnectionStatus.connected &&
         _stick != Offset.zero) {
@@ -107,18 +109,18 @@ class _ArrowJoystickState extends State<ArrowJoystick> {
                   width: crossWidth,
                   height: widget.size,
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: scheme.surface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.hairline, width: 2),
+                    border: Border.all(color: scheme.outlineVariant, width: 2),
                   ),
                 ),
                 Container(
                   width: widget.size,
                   height: crossWidth,
                   decoration: BoxDecoration(
-                    color: AppColors.surface,
+                    color: scheme.surface,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: AppColors.hairline, width: 2),
+                    border: Border.all(color: scheme.outlineVariant, width: 2),
                   ),
                 ),
 
@@ -156,9 +158,9 @@ class _ArrowJoystickState extends State<ArrowJoystick> {
                 Container(
                   width: crossWidth * 0.8,
                   height: crossWidth * 0.8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: AppColors.surface,
+                    color: scheme.surface,
                   ),
                 ),
 
@@ -190,11 +192,11 @@ class _ArrowJoystickState extends State<ArrowJoystick> {
         ),
         SizedBox(height: widget.size < 130 ? 4 : 8),
         Text(
-          widget.label,
+          widget.label.tr(),
           style: TextStyle(
             fontSize: widget.size < 130 ? 9.5 : 12,
             letterSpacing: 0.8,
-            color: AppColors.textSecondary,
+            color: scheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -219,6 +221,7 @@ class _ArrowIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     // Determine if the user is pushing in this direction.
     // We use a dot product to check alignment.
     final dot = (activeStick.dx * direction.dx + activeStick.dy * direction.dy);
@@ -230,7 +233,7 @@ class _ArrowIcon extends StatelessWidget {
         padding: const EdgeInsets.all(6.0),
         child: Icon(
           icon,
-          color: isActive ? AppColors.amber : AppColors.textSecondary,
+          color: isActive ? AppColors.amber : scheme.onSurfaceVariant,
           size: size,
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/vehicle_state.dart';
 import '../state/connection_status.dart';
 import '../state/settings_controller.dart';
@@ -22,10 +23,11 @@ class TelemetryDetailScreen extends StatelessWidget {
     final units = context.watch<SettingsController>().unitSystem;
     final connected =
         vehicleState.connectionStatus == ConnectionStatus.connected;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FULL TELEMETRY'),
+        title: Text('full_telemetry'.tr().toUpperCase()),
         leading: IconButton(
           icon: const Icon(Icons.close),
           onPressed: () => Navigator.of(context).pop(),
@@ -39,7 +41,7 @@ class TelemetryDetailScreen extends StatelessWidget {
         childAspectRatio: 1.4,
         children: [
           _TelemetryBlock(
-            label: 'BATTERY',
+            label: 'battery'.tr().toUpperCase(),
             value: connected
                 ? '${(vehicleState.batteryPercent ?? 0).toStringAsFixed(0)}%'
                 : '--',
@@ -50,7 +52,7 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.success,
           ),
           _TelemetryBlock(
-            label: 'ALTITUDE',
+            label: 'altitude'.tr().toUpperCase(),
             value: connected
                 ? units.formatDistance(vehicleState.altitudeMeters ?? 0)
                 : '--',
@@ -58,7 +60,7 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.cyan,
           ),
           _TelemetryBlock(
-            label: 'GROUND SPEED',
+            label: 'ground_speed'.tr().toUpperCase(),
             value: connected
                 ? units.formatSpeed(vehicleState.speedMps ?? 0)
                 : '--',
@@ -66,7 +68,7 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.amber,
           ),
           _TelemetryBlock(
-            label: 'VERTICAL SPEED',
+            label: 'vertical_speed'.tr().toUpperCase(),
             value: connected
                 ? units.formatVerticalSpeed(vehicleState.verticalSpeedMps ?? 0)
                 : '--',
@@ -76,7 +78,7 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.cyan,
           ),
           _TelemetryBlock(
-            label: 'HEADING',
+            label: 'heading'.tr().toUpperCase(),
             value: connected
                 ? '${(vehicleState.headingDegrees ?? 0).toStringAsFixed(0)}°'
                 : '--',
@@ -84,9 +86,11 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.amber,
           ),
           _TelemetryBlock(
-            label: 'GPS STATUS',
+            label: 'gps_status'.tr().toUpperCase(),
             value: connected
-                ? (vehicleState.latitude != null ? 'FIX' : 'NO FIX')
+                ? (vehicleState.latitude != null
+                      ? 'fix'.tr().toUpperCase()
+                      : 'no_fix'.tr().toUpperCase())
                 : '--',
             subValue: connected && vehicleState.latitude != null
                 ? '${vehicleState.latitude!.toStringAsFixed(4)}, ${vehicleState.longitude!.toStringAsFixed(4)}'
@@ -97,7 +101,7 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : AppColors.danger,
           ),
           _TelemetryBlock(
-            label: 'DIST. TO HOME',
+            label: 'dist_to_home'.tr().toUpperCase(),
             value: connected && vehicleState.distanceToHomeMeters != null
                 ? units.formatDistance(vehicleState.distanceToHomeMeters!)
                 : '--',
@@ -105,7 +109,7 @@ class TelemetryDetailScreen extends StatelessWidget {
             color: AppColors.cyan,
           ),
           _TelemetryBlock(
-            label: 'FLIGHT TIME',
+            label: 'flight_time'.tr().toUpperCase(),
             value: connected && vehicleState.flightDuration != null
                 ? _formatDuration(vehicleState.flightDuration!)
                 : '--',
@@ -135,12 +139,14 @@ class _TelemetryBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: scheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.hairline),
+        border: Border.all(color: scheme.outlineVariant),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -151,8 +157,8 @@ class _TelemetryBlock extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 label,
-                style: const TextStyle(
-                  color: AppColors.textSecondary,
+                style: TextStyle(
+                  color: scheme.onSurfaceVariant,
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.1,
@@ -165,16 +171,13 @@ class _TelemetryBlock extends StatelessWidget {
             value,
             style: telemetryNumberStyle.copyWith(
               fontSize: 22,
-              color: AppColors.textPrimary,
+              color: scheme.onSurface,
             ),
           ),
           if (subValue.isNotEmpty)
             Text(
               subValue,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 10,
-              ),
+              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10),
             ),
         ],
       ),

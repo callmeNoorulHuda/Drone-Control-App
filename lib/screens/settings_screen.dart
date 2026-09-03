@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
+import 'package:easy_localization/easy_localization.dart';
 import '../state/marker_style.dart';
 import '../state/settings_controller.dart';
 import '../state/joystick_style.dart';
@@ -16,24 +17,22 @@ class SettingsScreen extends StatelessWidget {
     // taps the toggle or picks a different marker, same as any other
     // Provider-backed screen.
     final settings = context.watch<SettingsController>();
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      appBar: AppBar(title: Text('settings'.tr())),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 32),
         children: [
-          const _SectionLabel('APPEARANCE'),
+          _SectionLabel('appearance'.tr()),
           const SizedBox(height: 10),
           _ThemeToggleCard(settings: settings),
           const SizedBox(height: 32),
-          const _SectionLabel('MAP POINTER'),
+          _SectionLabel('map_pointer'.tr()),
           const SizedBox(height: 4),
           Text(
-            'Choose how the drone is shown on the map.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12.5,
-            ),
+            'choose_drone_map'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
           const SizedBox(height: 14),
           Row(
@@ -53,14 +52,11 @@ class SettingsScreen extends StatelessWidget {
                 .toList(),
           ),
           const SizedBox(height: 32),
-          const _SectionLabel('JOYSTICK STYLE'),
+          _SectionLabel('joystick_style'.tr()),
           const SizedBox(height: 4),
           Text(
-            'Choose how the flight control sticks look.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12.5,
-            ),
+            'choose_joystick_look'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
           const SizedBox(height: 14),
           Row(
@@ -80,14 +76,11 @@ class SettingsScreen extends StatelessWidget {
                 .toList(),
           ),
           const SizedBox(height: 32),
-          const _SectionLabel('UNITS'),
+          _SectionLabel('units'.tr()),
           const SizedBox(height: 4),
           Text(
-            'Speed, altitude, and distance readouts.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12.5,
-            ),
+            'speed_altitude_readouts'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
           const SizedBox(height: 14),
           Row(
@@ -107,14 +100,11 @@ class SettingsScreen extends StatelessWidget {
                 .toList(),
           ),
           const SizedBox(height: 32),
-          const _SectionLabel('MAP STYLE'),
+          _SectionLabel('map_style'.tr()),
           const SizedBox(height: 4),
           Text(
-            'Tile imagery used for the flight map.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 12.5,
-            ),
+            'tile_imagery_map'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
           ),
           const SizedBox(height: 14),
           Row(
@@ -123,7 +113,7 @@ class SettingsScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: _TextOption(
-                    label: 'Street',
+                    label: 'street'.tr(),
                     selected: !settings.useSatelliteMap,
                     onTap: () => settings.setUseSatelliteMap(false),
                   ),
@@ -133,11 +123,81 @@ class SettingsScreen extends StatelessWidget {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: _TextOption(
-                    label: 'Satellite',
+                    label: 'satellite'.tr(),
                     selected: settings.useSatelliteMap,
                     onTap: () => settings.setUseSatelliteMap(true),
                   ),
                 ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          _SectionLabel('map_theme'.tr()),
+          const SizedBox(height: 4),
+          Text(
+            'choose_map_theme'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _TextOption(
+                    label: 'light_mode'.tr(),
+                    selected: !settings.isMapDark,
+                    onTap: () => settings.setMapDark(false),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
+                  child: _TextOption(
+                    label: 'dark_mode'.tr(),
+                    selected: settings.isMapDark,
+                    onTap: () => settings.setMapDark(true),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 32),
+          _SectionLabel('language'.tr()),
+          const SizedBox(height: 4),
+          Text(
+            'select_language'.tr(),
+            style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 12.5),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            children: [
+              _LanguageOption(
+                label: 'English',
+                locale: const Locale('en'),
+                selected: context.locale == const Locale('en'),
+                onTap: () => context.setLocale(const Locale('en')),
+              ),
+              _LanguageOption(
+                label: 'اردو',
+                locale: const Locale('ur'),
+                selected: context.locale == const Locale('ur'),
+                onTap: () => context.setLocale(const Locale('ur')),
+              ),
+              _LanguageOption(
+                label: '中文',
+                locale: const Locale('zh'),
+                selected: context.locale == const Locale('zh'),
+                onTap: () => context.setLocale(const Locale('zh')),
+              ),
+              _LanguageOption(
+                label: 'Español',
+                locale: const Locale('es'),
+                selected: context.locale == const Locale('es'),
+                onTap: () => context.setLocale(const Locale('es')),
               ),
             ],
           ),
@@ -188,13 +248,13 @@ class _ThemeToggleCard extends StatelessWidget {
             end: Alignment.bottomRight,
             colors: isDark
                 ? const [Color(0xFF0C1122), Color(0xFF1D2270)]
-                : const [Color(0xFFFFE3A6), Color(0xFF8FD3FF)],
+                : const [Color(0xFFFFFFFF), Color(0xFF8FD3FF)],
           ),
-          boxShadow: const [
+          boxShadow: [
             BoxShadow(
-              color: Colors.black26,
+              color: isDark ? Colors.black26 : Colors.black12,
               blurRadius: 14,
-              offset: Offset(0, 6),
+              offset: const Offset(0, 6),
             ),
           ],
         ),
@@ -219,7 +279,7 @@ class _ThemeToggleCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    isDark ? 'Dark Mode' : 'Light Mode',
+                    isDark ? 'dark_mode'.tr() : 'light_mode'.tr(),
                     style: TextStyle(
                       fontWeight: FontWeight.w700,
                       fontSize: 15,
@@ -227,7 +287,7 @@ class _ThemeToggleCard extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    'Tap to switch',
+                    'tap_to_switch'.tr(),
                     style: TextStyle(
                       fontSize: 12,
                       color: isDark ? Colors.white70 : const Color(0xFF3A3F4D),
@@ -436,6 +496,49 @@ class _TextOption extends StatelessWidget {
           textAlign: TextAlign.center,
           style: TextStyle(
             fontSize: 13,
+            fontWeight: FontWeight.w700,
+            color: selected ? AppColors.amber : scheme.onSurfaceVariant,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageOption extends StatelessWidget {
+  const _LanguageOption({
+    required this.label,
+    required this.locale,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final Locale locale;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: selected ? AppColors.amber : scheme.outlineVariant,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 14,
             fontWeight: FontWeight.w700,
             color: selected ? AppColors.amber : scheme.onSurfaceVariant,
           ),

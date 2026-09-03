@@ -46,16 +46,19 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
   @override
   Widget build(BuildContext context) {
     final radius = widget.borderRadius ?? (widget.compact ? 12 : 16);
+    final scheme = Theme.of(context).colorScheme;
+    final isDark = scheme.brightness == Brightness.dark;
+
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.surface.withValues(alpha: 0.94),
+        color: scheme.surface.withValues(alpha: 0.94),
         borderRadius: BorderRadius.circular(radius),
-        border: Border.all(color: AppColors.hairline),
-        boxShadow: const [
+        border: Border.all(color: scheme.outlineVariant),
+        boxShadow: [
           BoxShadow(
-            color: Colors.black38,
+            color: isDark ? Colors.black38 : Colors.black12,
             blurRadius: 16,
-            offset: Offset(0, 6),
+            offset: const Offset(0, 6),
           ),
         ],
       ),
@@ -83,7 +86,7 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: BoxDecoration(
-                      color: AppColors.hairline,
+                      color: scheme.outlineVariant,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -95,7 +98,7 @@ class _CollapsibleCardState extends State<CollapsibleCard> {
                             ? Icons.keyboard_arrow_down
                             : Icons.keyboard_arrow_up,
                         size: 18,
-                        color: AppColors.textSecondary,
+                        color: scheme.onSurfaceVariant,
                       ),
                     ],
                   ),

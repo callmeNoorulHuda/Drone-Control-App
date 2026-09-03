@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_tile_switcher/flutter_map_tile_switcher.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:latlong2/latlong.dart' as ll;
+import 'package:easy_localization/easy_localization.dart';
 import '../state/marker_style.dart';
 import '../theme/app_theme.dart';
 
@@ -16,6 +17,7 @@ class DroneMapView extends StatefulWidget {
     required this.connected,
     required this.hasFix,
     this.isDarkMode = false,
+    this.isMapDark = true,
     this.markerStyle = MarkerStyle.drone,
     this.useSatelliteMap = false,
   });
@@ -26,6 +28,7 @@ class DroneMapView extends StatefulWidget {
   final bool connected;
   final bool hasFix;
   final bool isDarkMode;
+  final bool isMapDark;
   final MarkerStyle markerStyle;
   final bool useSatelliteMap;
 
@@ -91,7 +94,7 @@ class _DroneMapViewState extends State<DroneMapView> {
                   mapType: widget.useSatelliteMap
                       ? MapTileType.satellite
                       : MapTileType.osm,
-                  isDarkMode: widget.isDarkMode,
+                  isDarkMode: widget.isMapDark,
                   userAgentPackageName: 'com.safesky.drone_control',
                 ),
                 if (widget.hasFix)
@@ -284,7 +287,7 @@ class _NoFixBanner extends StatelessWidget {
           color: bg.withValues(alpha: 0.85),
           child: Center(
             child: Text(
-              'NO GPS FIX — waiting for satellites',
+              'no_gps_fix_waiting'.tr().toUpperCase(),
               style: TextStyle(
                 color: textColor,
                 fontSize: 11,

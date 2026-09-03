@@ -23,6 +23,15 @@ class SettingsController extends ChangeNotifier {
   JoystickStyle _joystickStyle = JoystickStyle.classic;
   JoystickStyle get joystickStyle => _joystickStyle;
 
+  bool _isMapDark = true;
+  bool get isMapDark => _isMapDark;
+
+  void setMapDark(bool value) {
+    if (_isMapDark == value) return;
+    _isMapDark = value;
+    notifyListeners();
+  }
+
   void setJoystickStyle(JoystickStyle style) {
     if (_joystickStyle == style) return;
     _joystickStyle = style;
