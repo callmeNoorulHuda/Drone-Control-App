@@ -6,9 +6,22 @@ import '../state/connection_status.dart';
 import '../state/settings_controller.dart';
 import '../state/unit_system.dart';
 import '../theme/app_theme.dart';
+import '../models/health_state.dart';
+import '../screens/vehicle_health_screen.dart';
 
 class TelemetryDetailScreen extends StatelessWidget {
   const TelemetryDetailScreen({super.key});
+
+  Color _getHealthColor(HealthStatus status) {
+    switch (status) {
+      case HealthStatus.healthy:
+        return AppColors.success;
+      case HealthStatus.unhealthy:
+        return AppColors.danger;
+      default:
+        return AppColors.cyan;
+    }
+  }
 
   String _formatDuration(Duration d) {
     final hours = d.inHours;
@@ -50,6 +63,8 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '',
             icon: Icons.battery_charging_full,
             color: AppColors.success,
+            helpText:
+                'Percentage of charge remaining in the flight battery and its current voltage.',
           ),
           _TelemetryBlock(
             label: 'altitude'.tr().toUpperCase(),
@@ -58,6 +73,8 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '--',
             icon: Icons.height,
             color: AppColors.cyan,
+            helpText:
+                'Current height of the drone relative to the takeoff point.',
           ),
           _TelemetryBlock(
             label: 'ground_speed'.tr().toUpperCase(),
@@ -66,6 +83,7 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '--',
             icon: Icons.speed,
             color: AppColors.amber,
+            helpText: 'Horizontal speed of the drone relative to the ground.',
           ),
           _TelemetryBlock(
             label: 'vertical_speed'.tr().toUpperCase(),
@@ -76,6 +94,7 @@ class TelemetryDetailScreen extends StatelessWidget {
                 ? Icons.south
                 : Icons.north,
             color: AppColors.cyan,
+            helpText: 'The rate at which the drone is climbing or descending.',
           ),
           _TelemetryBlock(
             label: 'heading'.tr().toUpperCase(),
@@ -84,6 +103,7 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '--',
             icon: Icons.explore,
             color: AppColors.amber,
+            helpText: 'The compass direction the drone\'s nose is pointing.',
           ),
           _TelemetryBlock(
             label: 'gps_status'.tr().toUpperCase(),
@@ -93,12 +113,30 @@ class TelemetryDetailScreen extends StatelessWidget {
                       : 'no_fix'.tr().toUpperCase())
                 : '--',
             subValue: connected && vehicleState.latitude != null
-                ? '${vehicleState.latitude!.toStringAsFixed(4)}, ${vehicleState.longitude!.toStringAsFixed(4)}'
+                ? 'Sats: ${vehicleState.gpsSatellites ?? 0}'
                 : '',
             icon: Icons.gps_fixed,
             color: vehicleState.latitude != null
                 ? AppColors.success
                 : AppColors.danger,
+            helpText:
+                'GPS lock quality (3D Fix is ideal) and the number of satellites used for positioning.',
+          ),
+          _TelemetryBlock(
+            label: 'sys_health'.tr().toUpperCase(),
+            value: connected
+                ? vehicleState.overallHealth.name.toUpperCase()
+                : '--',
+            subValue: connected
+                ? '${vehicleState.activeAlerts.length} Alerts'
+                : '',
+            icon: Icons.health_and_safety,
+            color: _getHealthColor(vehicleState.overallHealth),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const VehicleHealthScreen()),
+            ),
+            helpText:
+                'Overall status of onboard sensors (Gyro, Accel, Compass) and navigation filters.',
           ),
           _TelemetryBlock(
             label: 'dist_to_home'.tr().toUpperCase(),
@@ -107,6 +145,8 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '--',
             icon: Icons.social_distance,
             color: AppColors.cyan,
+            helpText:
+                'Direct distance from the drone\'s current position to the recorded home point.',
           ),
           _TelemetryBlock(
             label: 'flight_time'.tr().toUpperCase(),
@@ -115,6 +155,8 @@ class TelemetryDetailScreen extends StatelessWidget {
                 : '--',
             icon: Icons.timer,
             color: AppColors.amber,
+            helpText:
+                'Elapsed time since the drone was armed and motors were started.',
           ),
         ],
       ),
@@ -129,57 +171,97 @@ class _TelemetryBlock extends StatelessWidget {
     this.subValue = '',
     required this.icon,
     required this.color,
+    this.onTap,
+    this.helpText,
   });
+
+  void _showHelp(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(width: 12),
+            Text(label),
+          ],
+        ),
+        content: Text(helpText ?? ''),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('close'.tr().toUpperCase()),
+          ),
+        ],
+      ),
+    );
+  }
 
   final String label;
   final String value;
   final String subValue;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
+  final String? helpText;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: scheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 16, color: color),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: scheme.onSurfaceVariant,
-                  fontSize: 10,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1.1,
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, size: 16, color: color),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: scheme.onSurfaceVariant,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 1.1,
+                    ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          Text(
-            value,
-            style: telemetryNumberStyle.copyWith(
-              fontSize: 22,
-              color: scheme.onSurface,
+                if (helpText != null)
+                  GestureDetector(
+                    onTap: () => _showHelp(context),
+                    child: Icon(
+                      Icons.help_outline,
+                      size: 14,
+                      color: scheme.onSurfaceVariant.withValues(alpha: 0.5),
+                    ),
+                  ),
+              ],
             ),
-          ),
-          if (subValue.isNotEmpty)
+            const Spacer(),
             Text(
-              subValue,
-              style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10),
+              value,
+              style: telemetryNumberStyle.copyWith(
+                fontSize: 22,
+                color: scheme.onSurface,
+              ),
             ),
-        ],
+            if (subValue.isNotEmpty)
+              Text(
+                subValue,
+                style: TextStyle(color: scheme.onSurfaceVariant, fontSize: 10),
+              ),
+          ],
+        ),
       ),
     );
   }

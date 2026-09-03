@@ -66,5 +66,16 @@
   "battery_low": "Battery Low",
   "battery_rtl_msg": "Battery at {percent}%. Return to launch now?",
   "rtl": "RTL",
-  "critical_battery_msg": "Critical battery — returning to launch automatically."
+  "critical_battery_msg": "Critical battery — returning to launch automatically.",
+  "drone_health": "Drone Health",
+  "systems": "Systems",
+  "flight_controller": "Flight Controller",
+  "active_alerts": "Active Alerts",
+  "healthy": "Healthy",
+  "unhealthy": "Unhealthy",
+  "not_present": "Not Present",
+  "disabled": "Disabled",
+  "unknown": "Unknown",
+  "sys_health": "System Health",
+  "close": "Close"
 }

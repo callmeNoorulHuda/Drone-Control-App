@@ -66,5 +66,16 @@
   "battery_low": "电池电量低",
   "battery_rtl_msg": "电池电量为 {percent}%。现在返航吗？",
   "rtl": "返航",
-  "critical_battery_msg": "电池电量严重不足 — 正在自动返航。"
+  "critical_battery_msg": "电池电量严重不足 — 正在自动返航。",
+  "drone_health": "无人机健康状况",
+  "systems": "系统",
+  "flight_controller": "飞行控制器",
+  "active_alerts": "活动警报",
+  "healthy": "健康",
+  "unhealthy": "不健康",
+  "not_present": "不存在",
+  "disabled": "已禁用",
+  "unknown": "未知",
+  "sys_health": "系统健康状况",
+  "close": "关闭"
 }

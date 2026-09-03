@@ -1,9 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:dart_mavlink/mavlink.dart';
-import 'package:dart_mavlink/dialects/common.dart';
+import 'package:dart_mavlink/dialects/ardupilotmega.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
+import '../models/health_state.dart';
 
 /// Owns the real MAVLink connection: opens a UDP socket, feeds incoming
 /// bytes into dart_mavlink's parser, and updates VehicleState from
@@ -70,7 +71,7 @@ class ConnectionManager {
 
     // The "dialect" is the vocabulary of message types we know how to
     // decode — the base common.xml set from Monday's reading.
-    final dialect = MavlinkDialectCommon();
+    final dialect = MavlinkDialectArdupilotmega();
     _parser = MavlinkParser(dialect);
 
     // Every time the parser finishes decoding one full, valid message, it
@@ -177,6 +178,46 @@ class ConnectionManager {
       final percent = message.batteryRemaining.toDouble();
 
       vehicleState.applyBattery(percent: percent, voltage: volts);
+
+      // Sensor health decoding
+      _decodeSensorHealth(message);
+    }
+
+    if (message is GpsRawInt) {
+      vehicleState.applyGpsStatus(
+        fixType: message.fixType,
+        satellites: message.satellitesVisible,
+      );
+    }
+
+    if (message is EkfStatusReport) {
+      _decodeEkfStatus(message);
+    }
+
+    if (message is Statustext) {
+      // Find the first null character (0) to stop reading and avoid trailing garbage
+      final charCodes = message.text.takeWhile((c) => c != 0).toList();
+      final text = String.fromCharCodes(charCodes).trim();
+
+      // Only add to Active Alerts if it's a Warning or Critical.
+      if (message.severity <= mavSeverityWarning) {
+        // FILTER: Remove technical noise that isn't actionable for the pilot
+        final lowerText = text.toLowerCase();
+        final isNoise =
+            lowerText.startsWith('terrain:') ||
+            lowerText.contains('failsafe cleared') ||
+            lowerText.contains('not armable');
+
+        if (!isNoise) {
+          vehicleState.addAlert(
+            VehicleAlert(
+              id: 'status_${message.severity}_${text.hashCode}',
+              message: text,
+              severity: _mapMavSeverity(message.severity),
+            ),
+          );
+        }
+      }
     }
 
     if (message is GlobalPositionInt) {
@@ -318,6 +359,75 @@ class ConnectionManager {
 
   Future<void> returnToLaunch() async {
     await setMode('RTL');
+  }
+
+  void _decodeSensorHealth(SysStatus msg) {
+    final present = msg.onboardControlSensorsPresent;
+    final enabled = msg.onboardControlSensorsEnabled;
+    final health = msg.onboardControlSensorsHealth;
+
+    _updateSensor(
+      'Gyroscope',
+      present,
+      enabled,
+      health,
+      mavSysStatusSensor3dGyro,
+    );
+    _updateSensor(
+      'Accelerometer',
+      present,
+      enabled,
+      health,
+      mavSysStatusSensor3dAccel,
+    );
+    _updateSensor('Compass', present, enabled, health, mavSysStatusSensor3dMag);
+    _updateSensor(
+      'Barometer',
+      present,
+      enabled,
+      health,
+      mavSysStatusSensorAbsolutePressure,
+    );
+  }
+
+  void _updateSensor(
+    String name,
+    int present,
+    int enabled,
+    int health,
+    int bit,
+  ) {
+    HealthStatus status;
+    if ((present & bit) == 0) {
+      status = HealthStatus.notPresent;
+    } else if ((enabled & bit) == 0) {
+      status = HealthStatus.notEnabled;
+    } else if ((health & bit) == 0) {
+      status = HealthStatus.unhealthy;
+    } else {
+      status = HealthStatus.healthy;
+    }
+    vehicleState.updateSensorHealth(name, status);
+  }
+
+  void _decodeEkfStatus(EkfStatusReport msg) {
+    final flags = msg.flags;
+    final healthy =
+        (flags & ekfPosHorizRel) != 0 &&
+        (flags & ekfPosHorizAbs) != 0 &&
+        (flags & ekfPosVertAbs) != 0;
+
+    vehicleState.updateSensorHealth(
+      'EKF',
+      healthy ? HealthStatus.healthy : HealthStatus.unhealthy,
+      details: 'Flags: $flags',
+    );
+  }
+
+  AlertSeverity _mapMavSeverity(int severity) {
+    if (severity <= mavSeverityCritical) return AlertSeverity.critical;
+    if (severity <= mavSeverityWarning) return AlertSeverity.warning;
+    return AlertSeverity.info;
   }
 
   void dispose() {

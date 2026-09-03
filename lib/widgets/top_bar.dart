@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:easy_localization/easy_localization.dart';
 import '../screens/settings_screen.dart';
+import '../screens/vehicle_health_screen.dart';
 import '../state/vehicle_state.dart';
+import '../models/health_state.dart';
 import '../theme/app_theme.dart';
 import 'connection_button.dart';
 import 'mode_toggle.dart';
@@ -76,6 +78,11 @@ class TopBar extends StatelessWidget {
             compact: compact,
           ),
           SizedBox(width: compact ? 10 : 18),
+          _HealthIndicator(
+            status: vehicleState.overallHealth,
+            compact: compact,
+          ),
+          SizedBox(width: compact ? 10 : 18),
           GestureDetector(
             onTap: () => Navigator.of(
               context,
@@ -89,6 +96,42 @@ class TopBar extends StatelessWidget {
           SizedBox(width: compact ? 20 : 18),
         ],
       ),
+    );
+  }
+}
+
+class _HealthIndicator extends StatelessWidget {
+  final HealthStatus status;
+  final bool compact;
+
+  const _HealthIndicator({required this.status, this.compact = false});
+
+  @override
+  Widget build(BuildContext context) {
+    IconData icon;
+    Color color;
+
+    switch (status) {
+      case HealthStatus.healthy:
+        icon = Icons.check_circle_outline;
+        color = AppColors.success;
+        break;
+      case HealthStatus.unhealthy:
+        icon = Icons.warning_amber_rounded;
+        color = AppColors.danger;
+        break;
+      case HealthStatus.unknown:
+      default:
+        icon = Icons.help_outline;
+        color = Theme.of(context).colorScheme.onSurfaceVariant;
+        break;
+    }
+
+    return GestureDetector(
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const VehicleHealthScreen())),
+      child: Icon(icon, color: color, size: compact ? 20 : 24),
     );
   }
 }

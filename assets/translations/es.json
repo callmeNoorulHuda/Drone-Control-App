@@ -66,5 +66,16 @@
   "battery_low": "Batería Baja",
   "battery_rtl_msg": "Batería al {percent}%. ¿Volver a casa ahora?",
   "rtl": "RTL",
-  "critical_battery_msg": "Batería crítica — volviendo a casa automáticamente."
+  "critical_battery_msg": "Batería crítica — volviendo a casa automáticamente.",
+  "drone_health": "Salud del Dron",
+  "systems": "Sistemas",
+  "flight_controller": "Controlador de Vuelo",
+  "active_alerts": "Alertas Activas",
+  "healthy": "Saludable",
+  "unhealthy": "No Saludable",
+  "not_present": "No Presente",
+  "disabled": "Desactivado",
+  "unknown": "Desconocido",
+  "sys_health": "Salud del Sistema",
+  "close": "Cerrar"
 }

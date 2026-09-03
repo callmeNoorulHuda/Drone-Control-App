@@ -66,5 +66,16 @@
   "battery_low": "بیٹری کم ہے",
   "battery_rtl_msg": "بیٹری {percent}٪ پر ہے۔ کیا ابھی گھر واپس آنا ہے؟",
   "rtl": "آر ٹی ایل",
-  "critical_battery_msg": "بیٹری انتہائی کم ہے - خود بخود گھر واپس جا رہی ہے۔"
+  "critical_battery_msg": "بیٹری انتہائی کم ہے - خود بخود گھر واپس جا رہی ہے۔",
+  "drone_health": "ڈرون کی صحت",
+  "systems": "سسٹمز",
+  "flight_controller": "فلائٹ کنٹرولر",
+  "active_alerts": "فعال الرٹس",
+  "healthy": "صحت مند",
+  "unhealthy": "غیر صحت مند",
+  "not_present": "موجود نہیں",
+  "disabled": "غیر فعال",
+  "unknown": "نامعلوم",
+  "sys_health": "سسٹم کی صحت",
+  "close": "بند کریں"
 }

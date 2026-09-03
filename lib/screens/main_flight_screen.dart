@@ -8,6 +8,7 @@ import '../state/connection_status.dart';
 import '../state/joystick_controller.dart';
 import '../state/settings_controller.dart';
 import '../state/vehicle_state.dart';
+import '../models/health_state.dart';
 import '../theme/app_theme.dart';
 import '../theme/responsive.dart';
 import '../widgets/camera_feed_panel.dart';
@@ -38,6 +39,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   late final ConnectionManager _connectionManager;
 
   String? _lastShownError;
+  VehicleAlert? _lastProcessedAlert;
   bool _timedOutDialogShown = false;
 
   // Manual = joysticks + arm/disarm + flight-mode chips are shown.
@@ -207,7 +209,50 @@ class _MainFlightScreenState extends State<MainFlightScreen>
       _timedOutDialogShown = false;
     }
 
+    _checkNewAlerts();
     _checkBatteryStatus();
+  }
+
+  void _checkNewAlerts() {
+    final alert = _vehicleState.lastNewAlert;
+    if (alert != null && alert != _lastProcessedAlert) {
+      _lastProcessedAlert = alert;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        Color bgColor;
+        switch (alert.severity) {
+          case AlertSeverity.critical:
+            bgColor = AppColors.danger;
+            break;
+          case AlertSeverity.warning:
+            bgColor = AppColors.amber;
+            break;
+          case AlertSeverity.info:
+            bgColor = Theme.of(context).colorScheme.secondary;
+            break;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(
+                  alert.severity == AlertSeverity.critical
+                      ? Icons.error
+                      : Icons.warning,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 12),
+                Expanded(child: Text(alert.message)),
+              ],
+            ),
+            backgroundColor: bgColor,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      });
+    }
   }
 
   Future<void> _showConnectionTimeoutDialog() async {

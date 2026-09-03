@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'connection_status.dart';
+import '../models/health_state.dart';
 
 /// Holds "everything currently known about the drone" in one place.
 /// The MAVLink layer updates this as messages arrive; the UI layer only
@@ -25,6 +26,13 @@ class VehicleState extends ChangeNotifier {
   double? longitude;
   String? lastError;
   double? verticalSpeedMps; // positive = climbing, negative = descending
+
+  int? gpsFixType;
+  int? gpsSatellites;
+
+  Map<String, ComponentHealth> sensorHealth = {};
+  List<VehicleAlert> activeAlerts = [];
+  VehicleAlert? lastNewAlert;
 
   // Captured once, the first time we're armed with a known GPS fix — this
   // is "home" for distance/bearing-to-home. Stays set across a disarm (so
@@ -77,6 +85,86 @@ class VehicleState extends ChangeNotifier {
     batteryPercent = percent;
     batteryVoltage = voltage;
     notifyListeners();
+  }
+
+  void updateSensorHealth(String name, HealthStatus status, {String? details}) {
+    final prev = sensorHealth[name];
+    sensorHealth[name] = ComponentHealth(
+      name: name,
+      status: status,
+      details: details,
+    );
+
+    // If it was unhealthy and now it's healthy, maybe show a recovery alert
+    if (prev != null &&
+        prev.status == HealthStatus.unhealthy &&
+        status == HealthStatus.healthy) {
+      addAlert(
+        VehicleAlert(
+          id: 'recovery_$name',
+          message: '✓ $name health restored.',
+          severity: AlertSeverity.info,
+        ),
+      );
+    } else if (status == HealthStatus.unhealthy) {
+      addAlert(
+        VehicleAlert(
+          id: 'health_$name',
+          message: '⚠ $name health problem detected',
+          severity: AlertSeverity.warning,
+        ),
+      );
+    }
+    notifyListeners();
+  }
+
+  void addAlert(VehicleAlert alert) {
+    // Deduplicate: don't add if an alert with same message/id is already there
+    // but update timestamp if it's the same ID.
+    final existingIndex = activeAlerts.indexWhere((a) => a.id == alert.id);
+    if (existingIndex != -1) {
+      if (activeAlerts[existingIndex].message == alert.message) {
+        // Same alert, just update it if needed, or ignore to avoid spamming
+        return;
+      }
+      activeAlerts.removeAt(existingIndex);
+    }
+
+    activeAlerts.add(alert);
+    lastNewAlert = alert;
+    notifyListeners();
+  }
+
+  void removeAlert(String id) {
+    activeAlerts.removeWhere((a) => a.id == id);
+    notifyListeners();
+  }
+
+  void applyGpsStatus({required int fixType, required int satellites}) {
+    gpsFixType = fixType;
+    gpsSatellites = satellites;
+
+    if (fixType <= 1) {
+      updateSensorHealth('GPS', HealthStatus.unhealthy, details: 'No Fix');
+    } else {
+      updateSensorHealth(
+        'GPS',
+        HealthStatus.healthy,
+        details: 'Fix: ${fixType}D, Sats: $satellites',
+      );
+    }
+    notifyListeners();
+  }
+
+  HealthStatus get overallHealth {
+    if (connectionLost) return HealthStatus.unknown;
+    if (activeAlerts.any((a) => a.severity == AlertSeverity.critical)) {
+      return HealthStatus.unhealthy; // Or define a 'critical' health status
+    }
+    if (activeAlerts.any((a) => a.severity == AlertSeverity.warning)) {
+      return HealthStatus.unhealthy;
+    }
+    return HealthStatus.healthy;
   }
 
   void applyPosition({
@@ -176,6 +264,11 @@ class VehicleState extends ChangeNotifier {
     homeLatitude = null;
     homeLongitude = null;
     armedSince = null;
+    gpsFixType = null;
+    gpsSatellites = null;
+    sensorHealth.clear();
+    activeAlerts.clear();
+    lastNewAlert = null;
     notifyListeners();
   }
 }
