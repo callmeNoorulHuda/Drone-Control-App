@@ -6,7 +6,7 @@ import '../state/vehicle_state.dart';
 import '../theme/app_theme.dart';
 import 'collapsible_card.dart';
 
-const _availableModes = ['Stabilize', 'Hover', 'RTL'];
+const _availableModes = ['Stabilize', 'Loiter', 'RTL'];
 
 /// Center-bottom panel sitting between the two joysticks: armed state,
 /// the big ARM/DISARM action, and flight-mode selection. Now wrapped in

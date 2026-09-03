@@ -197,26 +197,36 @@ class _TelemetryRow extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: compact ? 14 : 16,
+                size: compact ? 12 : 14,
                 color: scheme.onSurfaceVariant.withValues(alpha: 0.8),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 6),
               Expanded(
+                flex: 2,
                 child: Text(
                   label.toUpperCase(),
                   style: TextStyle(
                     color: scheme.onSurfaceVariant,
-                    fontSize: compact ? 10 : 11,
+                    fontSize: compact ? 9 : 10,
                     fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
+                    letterSpacing: 0.3,
                   ),
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
                 ),
               ),
-              Text(
-                value,
-                style: telemetryNumberStyle.copyWith(
-                  fontSize: compact ? 13 : 15,
-                  color: scheme.secondary,
+              const SizedBox(width: 4),
+              Expanded(
+                flex: 3,
+                child: Text(
+                  value,
+                  style: telemetryNumberStyle.copyWith(
+                    fontSize: compact ? 12 : 14,
+                    color: scheme.secondary,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  maxLines: 1,
                 ),
               ),
             ],

@@ -42,7 +42,7 @@ class TopBar extends StatelessWidget {
 
     return Container(
       padding: EdgeInsets.symmetric(
-        horizontal: compact ? 10 : 16,
+        horizontal: compact ? 8 : 12,
         vertical: compact ? 5 : 8,
       ),
       decoration: BoxDecoration(
@@ -51,15 +51,15 @@ class TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          SizedBox(width: compact ? 10 : 18),
-          Image.asset('assets/images/logo.png', height: compact ? 24 : 24),
+          SizedBox(width: compact ? 4 : 8),
+          Image.asset('assets/images/logo.png', height: compact ? 20 : 24),
           SizedBox(width: compact ? 6 : 10),
-          if (!compact || MediaQuery.of(context).size.width > 500)
+          if (MediaQuery.of(context).size.width > (compact ? 450 : 600))
             Text(
               'app_title'.tr(),
               style: TextStyle(
                 color: scheme.onSurface,
-                fontSize: compact ? 13 : 16,
+                fontSize: compact ? 12 : 16,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
               ),
@@ -70,30 +70,37 @@ class TopBar extends StatelessWidget {
             onChanged: onModeChanged,
             compact: compact,
           ),
-          SizedBox(width: compact ? 10 : 18),
+          SizedBox(width: compact ? 8 : 12),
           ConnectionButton(
             status: vehicleState.connectionStatus,
             connectionLost: vehicleState.connectionLost,
             onTap: onTapConnection,
             compact: compact,
           ),
-          SizedBox(width: compact ? 10 : 18),
+          SizedBox(width: compact ? 8 : 12),
           _HealthIndicator(
             status: vehicleState.overallHealth,
             compact: compact,
           ),
-          SizedBox(width: compact ? 10 : 18),
-          GestureDetector(
-            onTap: () => Navigator.of(
-              context,
-            ).push(MaterialPageRoute(builder: (_) => const SettingsScreen())),
-            child: Icon(
-              Icons.settings_outlined,
-              color: scheme.onSurfaceVariant,
-              size: compact ? 17 : 20,
+          SizedBox(width: compact ? 2 : 4),
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(10.0),
+                child: Icon(
+                  Icons.settings_outlined,
+                  color: scheme.onSurfaceVariant,
+                  size: compact ? 18 : 22,
+                ),
+              ),
             ),
           ),
-          SizedBox(width: compact ? 20 : 18),
+          SizedBox(width: compact ? 2 : 4),
         ],
       ),
     );

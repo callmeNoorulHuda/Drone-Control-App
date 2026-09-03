@@ -77,5 +77,22 @@
   "disabled": "Disabled",
   "unknown": "Unknown",
   "sys_health": "System Health",
-  "close": "Close"
+  "close": "Close",
+  "tap_map_to_add_waypoints": "Tap the map to add waypoints.",
+  "rtl_after_mission": "Return to Launch after mission",
+  "upload_mission": "Upload Mission",
+  "start_auto": "Start AUTO",
+  "mission_planning": "Mission Planning",
+  "mission_ready": "Mission Ready",
+  "uploading": "Uploading...",
+  "mission_uploaded": "Mission Uploaded",
+  "auto_active": "AUTO Active",
+  "mission_complete": "Mission Complete",
+  "clear_all": "Clear All",
+  "retry_upload": "Retry Upload",
+  "last_telemetry_received": "Last telemetry received at {time}",
+  "reconnect": "Reconnect",
+  "mode": "Mode",
+  "search_hint": "Search (e.g. 33.6, 73.1 or 'Islamabad')",
+  "waypoint_out_of_range": "Some waypoints are outside the estimated Wi-Fi range."
 }

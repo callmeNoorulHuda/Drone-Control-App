@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:dart_mavlink/mavlink.dart';
 import 'package:dart_mavlink/dialects/ardupilotmega.dart';
 import '../state/connection_status.dart';
 import '../state/vehicle_state.dart';
 import '../models/health_state.dart';
+import '../models/mission_waypoint.dart';
 
 /// Owns the real MAVLink connection: opens a UDP socket, feeds incoming
 /// bytes into dart_mavlink's parser, and updates VehicleState from
@@ -39,6 +41,18 @@ class ConnectionManager {
   // only listens, it doesn't transmit anything yet.
   String? _targetIp;
   int? _targetPort;
+
+  int _vehicleSystemId = 1;
+  int _vehicleComponentId = 1;
+
+  // Mission Upload State
+  List<MissionWaypoint>? _uploadingWaypoints;
+  Completer<bool>? _missionUploadCompleter;
+
+  // Mission Download State
+  List<MissionWaypoint>? _downloadingWaypoints;
+  int? _expectedDownloadCount;
+  Completer<List<MissionWaypoint>?>? _missionDownloadCompleter;
 
   static const _heartbeatTimeout = Duration(seconds: 4);
   // Fires only if we never received a single Heartbeat within
@@ -116,8 +130,17 @@ class ConnectionManager {
 
   static const Map<int, String> _ardupilotModeNames = {
     0: 'Stabilize',
-    5: 'Hover',
+    1: 'Acro',
+    2: 'AltHold',
+    3: 'AUTO',
+    4: 'Guided',
+    5: 'Loiter',
     6: 'RTL',
+    7: 'Circle',
+    9: 'Land',
+    16: 'PosHold',
+    17: 'Brake',
+    21: 'SmartRTL',
   };
 
   // Maps MAV_RESULT codes (from dart_mavlink's common.dart dialect) to
@@ -145,11 +168,51 @@ class ConnectionManager {
     return 'Command failed (code $result).';
   }
 
+  // Maps MAV_MISSION_RESULT codes to human-readable text
+  String _describeMissionResult(int result) {
+    if (result == mavMissionAccepted) return 'Mission accepted.';
+    if (result == mavMissionNoSpace) return 'Error: Drone memory is full.';
+    if (result == mavMissionInvalid) return 'Error: Mission item is invalid.';
+    if (result == mavMissionInvalidParam1) return 'Error: Invalid param 1.';
+    if (result == mavMissionInvalidParam2) return 'Error: Invalid param 2.';
+    if (result == mavMissionInvalidParam3) return 'Error: Invalid param 3.';
+    if (result == mavMissionInvalidParam4) return 'Error: Invalid param 4.';
+    if (result == mavMissionInvalidParam5X) return 'Error: Invalid Latitude.';
+    if (result == mavMissionInvalidParam6Y) return 'Error: Invalid Longitude.';
+    if (result == mavMissionInvalidParam7) return 'Error: Invalid Altitude.';
+    if (result == mavMissionInvalidSequence) return 'Error: Sequence mismatch.';
+    if (result == mavMissionDenied) return 'Mission denied by drone.';
+    if (result == mavMissionOperationCancelled) {
+      return 'Upload Cancelled: Drone aborted the transaction.';
+    }
+    return 'Mission failed (Code $result).';
+  }
+
   void _handleFrame(MavlinkFrame frame) {
+    // CRITICAL: Ignore all MAVLink messages sent by ourselves.
+    // In UDP/SITL environments, packets are often echoed back. If the app
+    // processes its own Mission messages, it will interfere with the
+    // handshake state machines (completers).
+    if (frame.systemId == _mySystemId) return;
+
     final message = frame.message;
 
     if (message is CommandAck) {
-      if (message.result != mavResultAccepted) {
+      if (message.command == mavCmdDoSetMode) {
+        if (message.result == mavResultAccepted) {
+          vehicleState.addAlert(
+            VehicleAlert(
+              id: 'mode_change_success',
+              message: 'Flight mode updated.',
+              severity: AlertSeverity.info,
+            ),
+          );
+        } else {
+          vehicleState.setError(
+            'Mode switch failed: ${_describeCommandResult(message.result)}',
+          );
+        }
+      } else if (message.result != mavResultAccepted) {
         vehicleState.setError(_describeCommandResult(message.result));
       }
     }
@@ -159,16 +222,90 @@ class ConnectionManager {
         vehicleState.setConnectionStatus(ConnectionStatus.connected);
         _connectTimeoutTimer?.cancel();
       }
-      // Bit 12mo8 in base_mode is the "armed" flag (from Day 1's glossary).
+
+      // Track the vehicle's IDs for addressing commands correctly
+      _vehicleSystemId = frame.systemId;
+      _vehicleComponentId = frame.componentId;
+
+      // Bit 128 in base_mode is the "armed" flag (from Day 1's glossary).
       final armed = (message.baseMode & 128) != 0;
-      // customMode is just a raw number here — turning it into a readable
-      // name like "Stabilize"/"Loiter" needs ArduPilot's mode-number
-      // lookup table, which is still
-      // is enough to prove real data is flowing correctly.
+
       final modeName =
           _ardupilotModeNames[message.customMode] ??
           message.customMode.toString();
       vehicleState.applyHeartbeat(armed: armed, mode: modeName);
+    }
+
+    // The mission protocol (MISSION_REQUEST / MISSION_REQUEST_INT /
+    // MISSION_ACK) is shared across regular waypoints, geofence, and
+    // rally points.
+    if (message is MissionRequest) {
+      _handleMissionRequest(message.seq);
+    } else if (message is MissionRequestInt) {
+      if (message.missionType == mavMissionTypeMission) {
+        _handleMissionRequest(message.seq);
+      }
+    }
+
+    if (message is MissionCount) {
+      if (message.missionType == mavMissionTypeMission) {
+        _handleMissionCount(message);
+      }
+    }
+
+    if (message is MissionItemInt) {
+      if (message.missionType == mavMissionTypeMission) {
+        _handleMissionItem(message);
+      }
+    }
+
+    if (message is MissionAck) {
+      debugPrint(
+        'MAVLink DEBUG: Received MissionAck - type: ${message.type}, missionType: ${message.missionType}, opaque: ${message.opaqueId}',
+      );
+
+      final completer = _missionUploadCompleter;
+      if (completer != null && !completer.isCompleted) {
+        // WORKAROUND for dart_mavlink parser misalignment:
+        // In MAVLink 2, ArduPilot sorts fields by size. opaque_id (4 bytes)
+        // comes first, then target_system (1 byte).
+        // If the library parser doesn't account for this, the fields are
+        // shifted.
+        // We detect this by checking if 'type' matches our System ID (250).
+        int actualResult = message.type;
+        if (actualResult == _mySystemId) {
+          // If shifted, the real MAV_MISSION_RESULT is usually at Byte 6.
+          // In the app's misaligned model, this is inside opaqueId.
+          actualResult = (message.opaqueId >> 16) & 0xFF;
+          debugPrint(
+            'MAVLink DEBUG: Detected misalignment. Real result: $actualResult',
+          );
+        }
+
+        if (actualResult == mavMissionAccepted) {
+          vehicleState.addAlert(
+            VehicleAlert(
+              id: 'mission_upload_success',
+              message: 'Mission accepted by vehicle.',
+              severity: AlertSeverity.info,
+            ),
+          );
+          completer.complete(true);
+        } else {
+          final errorMsg = _describeMissionResult(actualResult);
+          vehicleState.setError(errorMsg);
+          completer.complete(false);
+        }
+      }
+      _uploadingWaypoints = null;
+    }
+
+    if (message is MissionCurrent) {
+      vehicleState.applyMissionCurrent(message.seq);
+    }
+
+    if (message is MissionItemReached) {
+      // Could be used for more granular feedback
     }
 
     if (message is SysStatus) {
@@ -199,24 +336,19 @@ class ConnectionManager {
       final charCodes = message.text.takeWhile((c) => c != 0).toList();
       final text = String.fromCharCodes(charCodes).trim();
 
+      // Filter and translate common ArduPilot messages for better UX
+      final translated = _translateStatusText(text);
+      if (translated == null) return; // Hidden noise
+
       // Only add to Active Alerts if it's a Warning or Critical.
       if (message.severity <= mavSeverityWarning) {
-        // FILTER: Remove technical noise that isn't actionable for the pilot
-        final lowerText = text.toLowerCase();
-        final isNoise =
-            lowerText.startsWith('terrain:') ||
-            lowerText.contains('failsafe cleared') ||
-            lowerText.contains('not armable');
-
-        if (!isNoise) {
-          vehicleState.addAlert(
-            VehicleAlert(
-              id: 'status_${message.severity}_${text.hashCode}',
-              message: text,
-              severity: _mapMavSeverity(message.severity),
-            ),
-          );
-        }
+        vehicleState.addAlert(
+          VehicleAlert(
+            id: 'status_${message.severity}_${text.hashCode}',
+            message: translated,
+            severity: _mapMavSeverity(message.severity),
+          ),
+        );
       }
     }
 
@@ -284,8 +416,8 @@ class ConnectionManager {
       param5: 0,
       param6: 0,
       param7: 0,
-      targetSystem: 1,
-      targetComponent: 1,
+      targetSystem: _vehicleSystemId,
+      targetComponent: _vehicleComponentId,
       confirmation: 0,
     );
     _sendMessage(command);
@@ -293,13 +425,29 @@ class ConnectionManager {
 
   static const Map<String, int> _ardupilotModeNumbers = {
     'Stabilize': 0,
-    'Hover': 5,
+    'Acro': 1,
+    'AltHold': 2,
+    'AUTO': 3,
+    'Guided': 4,
+    'Loiter': 5,
     'RTL': 6,
+    'Circle': 7,
+    'Land': 9,
+    'PosHold': 16,
   };
 
   Future<void> setMode(String mode) async {
     final modeNumber = _ardupilotModeNumbers[mode];
     if (modeNumber == null) return;
+
+    vehicleState.addAlert(
+      VehicleAlert(
+        id: 'mode_change_req',
+        message: 'Requesting mode: $mode...',
+        severity: AlertSeverity.info,
+      ),
+    );
+
     final command = CommandLong(
       command: mavCmdDoSetMode,
       param1: mavModeFlagCustomModeEnabled.toDouble(),
@@ -309,8 +457,8 @@ class ConnectionManager {
       param5: 0,
       param6: 0,
       param7: 0,
-      targetSystem: 1,
-      targetComponent: 1,
+      targetSystem: _vehicleSystemId,
+      targetComponent: _vehicleComponentId,
       confirmation: 0,
     );
     _sendMessage(command);
@@ -323,11 +471,10 @@ class ConnectionManager {
     required double roll,
   }) async {
     final message = ManualControl(
-      target: 1,
+      target: _vehicleSystemId,
       x: (pitch.clamp(-1, 1) * 1000).round(),
       y: (roll.clamp(-1, 1) * 1000).round(),
-      // Maps our [-1, 1] throttle input back to the [0, 1000] range that
-      // flight controllers expect for their throttle channel.
+      // ArduCopter specific: z is mapped to [0, 1000] for thrust
       // -1.0 (Bottom) -> 0 (Zero Throttle)
       //  0.0 (Center) -> 500 (Neutral/Hover)
       //  1.0 (Top)    -> 1000 (Full Throttle)
@@ -359,6 +506,275 @@ class ConnectionManager {
 
   Future<void> returnToLaunch() async {
     await setMode('RTL');
+  }
+
+  Future<bool> uploadMission(
+    List<MissionWaypoint> waypoints, {
+    bool rtlAfter = true,
+  }) async {
+    if (waypoints.isEmpty) return false;
+
+    // ArduPilot Mission Structure:
+    // Seq 0: Home Position (Mandatory)
+    // Seq 1: Takeoff (Required to lift off in AUTO mode)
+    // Seq 2..N: Actual Waypoints
+    // Seq N+1: RTL (Optional)
+
+    final List<MissionWaypoint> items = [];
+
+    // 0. Home
+    items.add(
+      MissionWaypoint(
+        lat: vehicleState.latitude ?? 0,
+        lon: vehicleState.longitude ?? 0,
+        alt: 0,
+        seq: 0,
+      ),
+    );
+
+    // 1. Takeoff (Using first waypoint's location but marked as Takeoff)
+    items.add(
+      MissionWaypoint(
+        lat: waypoints.first.lat,
+        lon: waypoints.first.lon,
+        alt: waypoints.first.alt,
+        seq: 1,
+      ),
+    );
+
+    // 2..N. Waypoints
+    for (int i = 0; i < waypoints.length; i++) {
+      items.add(waypoints[i].copyWith(seq: i + 2));
+    }
+
+    // N+1. RTL
+    if (rtlAfter) {
+      items.add(MissionWaypoint(lat: 0, lon: 0, alt: 0, seq: items.length));
+    }
+
+    // Prepare state BEFORE sending MAVLink commands
+    _missionUploadCompleter = Completer<bool>();
+    _uploadingWaypoints = items;
+
+    vehicleState.setMissionUploadStatus(MissionUploadStatus.uploading);
+    vehicleState.addAlert(
+      VehicleAlert(
+        id: 'mission_upload_start',
+        message: 'Uploading mission (${waypoints.length} waypoints)...',
+        severity: AlertSeverity.info,
+      ),
+    );
+
+    // ArduPilot can be picky about addressing. Use System ID from last heartbeat
+    final targetSys = _vehicleSystemId;
+    final targetComp = _vehicleComponentId;
+
+    _sendMessage(
+      MissionCount(
+        targetSystem: targetSys,
+        targetComponent: targetComp,
+        count: items.length,
+        missionType: mavMissionTypeMission,
+        opaqueId: 0,
+      ),
+    );
+
+    // Wait for the ACK or failure
+    final result = await _missionUploadCompleter!.future.timeout(
+      const Duration(seconds: 30), // Extended for slow SITL/UDP
+      onTimeout: () {
+        final completer = _missionUploadCompleter;
+        if (completer != null && !completer.isCompleted) {
+          completer.complete(false);
+        }
+        _uploadingWaypoints = null;
+        return false;
+      },
+    );
+
+    vehicleState.setMissionUploadStatus(
+      result ? MissionUploadStatus.uploaded : MissionUploadStatus.failed,
+    );
+    return result;
+  }
+
+  void _handleMissionRequest(int seq) {
+    final List<MissionWaypoint>? waypoints = _uploadingWaypoints;
+    if (waypoints == null) return;
+
+    if (seq >= 0 && seq < waypoints.length) {
+      final wp = waypoints[seq];
+
+      int command = mavCmdNavWaypoint;
+      double p1 = 0;
+      int frame = mavFrameGlobalRelativeAlt;
+
+      if (seq == 0) {
+        command = mavCmdNavWaypoint;
+        frame = mavFrameGlobal;
+      } else if (seq == 1) {
+        command = mavCmdNavTakeoff;
+        p1 = 0;
+      } else if (wp.lat == 0 && wp.lon == 0 && seq == waypoints.length - 1) {
+        command = mavCmdNavReturnToLaunch;
+      }
+
+      // Provide visual feedback for upload progress.
+      if (seq >= 2) {
+        final userSeq = seq - 1; // Item 2 is user WP 1
+        final userTotal =
+            waypoints.length - 2 - (waypoints.last.lat == 0 ? 1 : 0);
+
+        if (userSeq <= userTotal) {
+          vehicleState.addAlert(
+            VehicleAlert(
+              id: 'mission_upload_progress',
+              message: 'Uploading waypoint $userSeq of $userTotal...',
+              severity: AlertSeverity.info,
+            ),
+          );
+        }
+      }
+
+      _sendMessage(
+        MissionItemInt(
+          targetSystem: _vehicleSystemId,
+          targetComponent: _vehicleComponentId,
+          seq: seq,
+          frame: frame,
+          command: command,
+          current: 0,
+          autocontinue: 1,
+          param1: p1,
+          param2: 0,
+          param3: 0,
+          param4: 0,
+          x: (wp.lat * 1e7).toInt(),
+          y: (wp.lon * 1e7).toInt(),
+          z: wp.alt.toDouble(),
+          missionType: mavMissionTypeMission,
+        ),
+      );
+    }
+  }
+
+  Future<void> startAuto() async {
+    // If the drone is not armed, we must arm it first.
+    if (!vehicleState.armed) {
+      vehicleState.addAlert(
+        VehicleAlert(
+          id: 'auto_arming',
+          message: 'Arming drone for autonomous mission...',
+          severity: AlertSeverity.info,
+        ),
+      );
+
+      await armDisarm(true);
+
+      // Wait for the drone to confirm it's armed.
+      final deadline = DateTime.now().add(const Duration(seconds: 4));
+      while (!vehicleState.armed && DateTime.now().isBefore(deadline)) {
+        await Future.delayed(const Duration(milliseconds: 200));
+      }
+
+      if (!vehicleState.armed) {
+        vehicleState.setError('Arming failed. Mission start aborted.');
+        return;
+      }
+    }
+
+    // Now switch to AUTO mode.
+    await setMode('AUTO');
+  }
+
+  Future<List<MissionWaypoint>?> downloadMission() async {
+    _downloadingWaypoints = [];
+    _expectedDownloadCount = null;
+    _missionDownloadCompleter = Completer<List<MissionWaypoint>?>();
+
+    _sendMessage(
+      MissionRequestList(
+        targetSystem: _vehicleSystemId,
+        targetComponent: _vehicleComponentId,
+        missionType: mavMissionTypeMission,
+      ),
+    );
+
+    final result = await _missionDownloadCompleter!.future.timeout(
+      const Duration(seconds: 20),
+      onTimeout: () {
+        _missionDownloadCompleter = null;
+        return null;
+      },
+    );
+
+    if (result != null) {
+      // Filter out Home (Seq 0) and Takeoff (Seq 1) for planning UI.
+      // Modern GCS apps usually don't show internal flight controller
+      // items in the waypoint list to avoid confusing the pilot.
+      final userWps = result
+          .where((wp) => wp.seq >= 2) // User waypoints start at index 2
+          .map((wp) => wp.copyWith(seq: wp.seq - 2)) // Re-normalize seq
+          .toList();
+      vehicleState.setMissionWaypoints(userWps);
+    }
+
+    return result;
+  }
+
+  void _handleMissionCount(MissionCount msg) {
+    if (_missionDownloadCompleter == null) return;
+    _expectedDownloadCount = msg.count;
+    _downloadingWaypoints = [];
+
+    if (_expectedDownloadCount == 0) {
+      _missionDownloadCompleter?.complete([]);
+      return;
+    }
+
+    // Request first item
+    _requestMissionItem(0);
+  }
+
+  void _requestMissionItem(int seq) {
+    _sendMessage(
+      MissionRequestInt(
+        targetSystem: _vehicleSystemId,
+        targetComponent: _vehicleComponentId,
+        seq: seq,
+        missionType: mavMissionTypeMission,
+      ),
+    );
+  }
+
+  void _handleMissionItem(MissionItemInt msg) {
+    if (_missionDownloadCompleter == null || _expectedDownloadCount == null) {
+      return;
+    }
+
+    final wp = MissionWaypoint(
+      lat: msg.x / 1e7,
+      lon: msg.y / 1e7,
+      alt: msg.z,
+      seq: msg.seq,
+    );
+    _downloadingWaypoints?.add(wp);
+
+    if (_downloadingWaypoints!.length >= _expectedDownloadCount!) {
+      _sendMessage(
+        MissionAck(
+          targetSystem: _vehicleSystemId,
+          targetComponent: _vehicleComponentId,
+          type: mavMissionAccepted,
+          missionType: mavMissionTypeMission,
+          opaqueId: 0,
+        ),
+      );
+      _missionDownloadCompleter?.complete(_downloadingWaypoints);
+      _missionDownloadCompleter = null;
+    } else {
+      _requestMissionItem(_downloadingWaypoints!.length);
+    }
   }
 
   void _decodeSensorHealth(SysStatus msg) {
@@ -428,6 +844,49 @@ class ConnectionManager {
     if (severity <= mavSeverityCritical) return AlertSeverity.critical;
     if (severity <= mavSeverityWarning) return AlertSeverity.warning;
     return AlertSeverity.info;
+  }
+
+  /// Translates raw ArduPilot status strings into pilot-friendly statements
+  /// or returns null if the message should be filtered out (noise).
+  String? _translateStatusText(String raw) {
+    final lower = raw.toLowerCase();
+
+    // Noise filtering
+    if (lower.startsWith('terrain:') ||
+        lower.contains('failsafe cleared') ||
+        lower.contains('ekf2 waiting') ||
+        lower.contains('ekf3 waiting')) {
+      return null;
+    }
+
+    // Pre-arm check translations
+    if (lower.contains('throttle too high')) {
+      return 'Arming Denied: Move throttle stick to the bottom.';
+    }
+    if (lower.contains('not armed') && lower.contains('auto')) {
+      return 'Action Required: Arm the drone before starting AUTO.';
+    }
+    if (lower.contains('need 3d fix')) {
+      return 'Arming Denied: Waiting for GPS 3D fix.';
+    }
+    if (lower.contains('high gps hdop')) {
+      return 'Arming Denied: GPS signal is too weak (High HDOP).';
+    }
+    if (lower.contains('compass not healthy')) {
+      return 'Arming Denied: Compass error. Check for metal nearby.';
+    }
+    if (lower.contains('ekf primary changed')) {
+      return 'Navigation System Updated (EKF Change).';
+    }
+    if (lower.contains('hardware safety switch')) {
+      return 'Arming Denied: Press the physical safety switch on drone.';
+    }
+    if (lower.contains('check brd_type')) {
+      return 'Critical: Autopilot hardware identification failed.';
+    }
+
+    // Default: Strip technical prefixes but keep the message
+    return raw.replaceAll('PreArm: ', '').replaceAll('Arm: ', '');
   }
 
   void dispose() {

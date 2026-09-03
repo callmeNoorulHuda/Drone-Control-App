@@ -19,6 +19,7 @@ import '../widgets/top_bar.dart';
 import '../widgets/virtual_joystick.dart';
 import '../widgets/arrow_joystick.dart';
 import '../state/joystick_style.dart';
+import '../widgets/auto_mission_panel.dart';
 
 class MainFlightScreen extends StatefulWidget {
   const MainFlightScreen({super.key});
@@ -33,8 +34,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   final JoystickController _leftController = JoystickController();
   final JoystickController _rightController = JoystickController();
 
-  // No longer created here — sourced from Provider (see main.dart), since
-  // they now live for the whole app's lifetime, not just this screen's.
   late final VehicleState _vehicleState;
   late final ConnectionManager _connectionManager;
 
@@ -42,23 +41,20 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   VehicleAlert? _lastProcessedAlert;
   bool _timedOutDialogShown = false;
 
-  // Manual = joysticks + arm/disarm + flight-mode chips are shown.
-  // Auto = those disappear; only map, telemetry, and camera feed remain.
   bool _manualMode = true;
   Offset _leftStick = Offset.zero;
   Offset _rightStick = Offset.zero;
   Timer? _controlTimer;
 
-  // --- Side Panel Draggable State -----------------------------------
-  double? _draggedPanelWidth;
-  bool _sidePanelVisible = true;
+  // --- Side Panels State --------------------------------------------
+  double? _draggedRightPanelWidth;
+  bool _rightPanelVisible = true;
 
-  // --- Battery warning/critical dialog state -------------------------
-  // Warning: pop a confirm-or-cancel RTL dialog. Re-prompts every extra
-  // _batteryRepromptStep percent the battery drops past the last time we
-  // showed it (so cancelling once doesn't silence it for the whole flight,
-  // but it also doesn't nag on every single percent tick).
-  // Critical: no dialog — RTL is triggered automatically, no confirmation.
+  double? _draggedLeftPanelWidth;
+  bool _leftPanelVisible = true;
+
+  bool _dismissedConnectionOverlay = false;
+
   static const double _batteryWarningThreshold = 20.0;
   static const double _batteryCriticalThreshold = 10.0;
   static const double _batteryRepromptStep = 2.0;
@@ -68,20 +64,19 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   @override
   void initState() {
     super.initState();
-    // context.read is safe here: we're not registering a rebuild
-    // dependency, just fetching the instances once when this screen is
-    // first created.
     _vehicleState = context.read<VehicleState>();
     _connectionManager = context.read<ConnectionManager>();
 
     WidgetsBinding.instance.addObserver(this);
     _applySystemUISettings();
 
-    // KEPT as addListener on purpose — this drives one-shot side effects
-    // (showing a snackbar, centering joysticks, battery warnings), not UI
-    // rebuilding. See the note in build() for the part that WAS converted
-    // to watch().
     _vehicleState.addListener(_onVehicleStateChanged);
+
+    _vehicleState.addListener(() {
+      if (!_vehicleState.connectionLost && _dismissedConnectionOverlay) {
+        setState(() => _dismissedConnectionOverlay = false);
+      }
+    });
 
     _controlTimer = Timer.periodic(const Duration(milliseconds: 70), (_) {
       if (_manualMode &&
@@ -112,51 +107,41 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   }
 
   Future<void> _applySystemUISettings() async {
-    // this makes the joystick stick in landscape layout
     await SystemChrome.setPreferredOrientations([
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    // UI can temporarily appear if the user swipes from an edge, but Flutter will hide it again.
     await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Android kicks the app back out of immersive mode whenever it's
-    // backgrounded and resumed (e.g. the pilot switches apps mid-flight
-    // to check something, then comes back). Re-apply it every time we
-    // come back to the foreground, or the bars silently reappear.
     if (state == AppLifecycleState.resumed) {
       SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     }
   }
 
-  // Renamed from the old (never-called) _onArmPressed, and now handles
-  // BOTH directions — arm and disarm — since it's the single entry point
-  // FlightStatusPanel calls via its onArmToggle callback. Only the arm
-  // path forces idle throttle first; disarm doesn't need that.
   Future<void> _onArmToggle(bool arm) async {
     if (arm) {
       setState(() => _forceIdleThrottleForArming = true);
-      // Visually snaps the throttle stick to minimum.
       _leftController.moveTo(const Offset(0, 1));
 
-      // Force a manual control packet with -1.0 throttle (idle) IMMEDIATELY.
-      // ArduPilot rejects arm commands if the last received throttle wasn't 0.
-      await _connectionManager.sendManualControl(
-        throttle: -1.0,
-        yaw: _leftStick.dx,
-        pitch: -_rightStick.dy,
-        roll: _rightStick.dx,
-      );
+      // Send a burst of zero-throttle packets. ArduPilot checks the last
+      // few seconds of RC/Joystick input to ensure stability before arming.
+      for (int i = 0; i < 5; i++) {
+        await _connectionManager.sendManualControl(
+          throttle: -1.0,
+          yaw: _leftStick.dx,
+          pitch: -_rightStick.dy,
+          roll: _rightStick.dx,
+        );
+        await Future.delayed(const Duration(milliseconds: 50));
+      }
     }
 
     await _connectionManager.armDisarm(arm);
 
     if (arm) {
-      // Wait for the heartbeat to confirm armed, with a safety timeout
-      // so a failed/rejected arm doesn't leave throttle stuck at 0 forever.
       final deadline = DateTime.now().add(const Duration(seconds: 3));
       while (!_vehicleState.armed && DateTime.now().isBefore(deadline)) {
         await Future.delayed(const Duration(milliseconds: 100));
@@ -164,8 +149,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
 
       if (mounted) {
         setState(() => _forceIdleThrottleForArming = false);
-        // Automatically return throttle to center once armed, as requested.
-        // NOTE: In Stabilize mode, this will spin motors to 50% (hover).
         _leftController.center();
       }
     }
@@ -287,9 +270,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     if (_vehicleState.connectionStatus != ConnectionStatus.connected) return;
 
     if (battery <= _batteryCriticalThreshold) {
-      // Critical: no confirmation, just go — matches the "if less than a
-      // certain level, make it automatically RTL and the person isn't
-      // able to do anything" requirement.
       if (_vehicleState.currentMode != 'RTL') {
         _connectionManager.returnToLaunch();
         WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -317,8 +297,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
         });
       }
     } else {
-      // Battery recovered above the warning line (e.g. reconnect with a
-      // fresh pack) — reset so a future dip re-prompts from scratch.
       _lastBatteryPromptPercent = null;
     }
   }
@@ -360,8 +338,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
   void dispose() {
     _vehicleState.removeListener(_onVehicleStateChanged);
     _controlTimer?.cancel();
-    // _connectionManager.dispose() is NOT called here anymore — main.dart
-    // owns that object now, so main.dart is responsible for disposing it.
     _applySystemUISettings();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -380,10 +356,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
 
   @override
   Widget build(BuildContext context) {
-    // CONVERTED from ListenableBuilder(listenable: _vehicleState, ...) to
-    // context.watch — this subscribes the whole build() to VehicleState
-    // and reruns it automatically on notifyListeners(), same effect as
-    // the old ListenableBuilder wrapper, one less nested widget.
     final vehicleState = context.watch<VehicleState>();
     final settings = context.watch<SettingsController>();
 
@@ -392,10 +364,6 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     final hasFix =
         vehicleState.latitude != null && vehicleState.longitude != null;
 
-    // One breakpoint drives every size in this screen — phone gets
-    // tighter panels/joysticks/fonts, tablet gets the fuller sizing.
-    // Layout shape (map left, side panel right) stays the same on
-    // both; only the numbers scale, per Noor's request.
     final tablet = isTabletLayout(context);
     final gap = tablet ? 12.0 : 4.0;
 
@@ -403,8 +371,12 @@ class _MainFlightScreenState extends State<MainFlightScreen>
     final minPanelWidth = tablet ? 100.0 : 60.0;
     final maxPanelWidth = tablet ? 500.0 : 250.0;
 
-    final currentPanelWidth = _sidePanelVisible
-        ? (_draggedPanelWidth ?? defaultSidePanelWidth)
+    final currentRightPanelWidth = _rightPanelVisible
+        ? (_draggedRightPanelWidth ?? defaultSidePanelWidth)
+        : 0.0;
+
+    final currentLeftPanelWidth = (!_manualMode && _leftPanelVisible)
+        ? (_draggedLeftPanelWidth ?? defaultSidePanelWidth)
         : 0.0;
 
     final joystickSize = tablet ? 200.0 : 136.0;
@@ -427,23 +399,63 @@ class _MainFlightScreenState extends State<MainFlightScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // LEFT: map, with manual-only overlay controls.
+                  // LEFT: AUTO Mission Panel (if in AUTO mode)
+                  if (currentLeftPanelWidth > 0)
+                    SizedBox(
+                      width: currentLeftPanelWidth,
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(gap, gap, 0, gap),
+                        child: AutoMissionPanel(compact: !tablet),
+                      ),
+                    ),
+
+                  // CENTER: Map and Overlays
                   Expanded(
                     child: Padding(
                       padding: EdgeInsets.all(gap),
                       child: Stack(
                         children: [
                           DroneMapView(
-                            latitude: vehicleState.latitude ?? 33.6844,
-                            longitude: vehicleState.longitude ?? 73.0479,
+                            latitude:
+                                vehicleState.latitude ??
+                                vehicleState.lastKnownLat ??
+                                33.6844,
+                            longitude:
+                                vehicleState.longitude ??
+                                vehicleState.lastKnownLon ??
+                                73.0479,
                             headingDegrees: vehicleState.headingDegrees ?? 0,
                             connected: connected,
-                            hasFix: hasFix,
+                            hasFix: hasFix || vehicleState.lastKnownLat != null,
                             isDarkMode: settings.isDarkMode,
                             isMapDark: settings.isMapDark,
                             markerStyle: settings.markerStyle,
                             useSatelliteMap: settings.useSatelliteMap,
+                            onMapTap: (point) {
+                              if (!_manualMode) {
+                                vehicleState.addWaypoint(
+                                  point.latitude,
+                                  point.longitude,
+                                );
+                              }
+                            },
+                            waypoints: vehicleState.missionWaypoints,
+                            homeLat: vehicleState.homeLatitude,
+                            homeLon: vehicleState.homeLongitude,
+                            currentWaypointIndex:
+                                vehicleState.currentWaypointIndex,
+                            wifiRangeMeters: vehicleState.wifiRangeMeters,
+                            showSearch: !_manualMode,
                           ),
+                          if (vehicleState.connectionLost &&
+                              !_dismissedConnectionOverlay)
+                            _ConnectionLostOverlay(
+                              vehicleState: vehicleState,
+                              compact: !tablet,
+                              onDismiss: () => setState(
+                                () => _dismissedConnectionOverlay = true,
+                              ),
+                            ),
                           if (_manualMode) ...[
                             Positioned(
                               left: edgeInset,
@@ -541,8 +553,87 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                               ),
                             ),
                           ],
+                          // --- LEFT DRAG HANDLE (for AUTO Mission Panel) ---
+                          if (!_manualMode)
+                            Positioned(
+                              left: 0,
+                              top: 0,
+                              bottom: 0,
+                              child: GestureDetector(
+                                behavior: HitTestBehavior.translucent,
+                                onHorizontalDragUpdate: (details) {
+                                  setState(() {
+                                    if (!_leftPanelVisible) {
+                                      if (details.delta.dx > 5) {
+                                        _leftPanelVisible = true;
+                                        _draggedLeftPanelWidth =
+                                            defaultSidePanelWidth;
+                                      }
+                                    } else {
+                                      final baseWidth =
+                                          _draggedLeftPanelWidth ??
+                                          defaultSidePanelWidth;
+                                      final newWidth =
+                                          (baseWidth + details.delta.dx);
 
-                          // --- DRAG HANDLE / PULL TRIGGER ----------------
+                                      if (newWidth < 40) {
+                                        _leftPanelVisible = false;
+                                        _draggedLeftPanelWidth = 0.0;
+                                      } else {
+                                        _draggedLeftPanelWidth = newWidth.clamp(
+                                          minPanelWidth,
+                                          maxPanelWidth,
+                                        );
+                                      }
+                                    }
+                                  });
+                                },
+                                child: Container(
+                                  width: 32,
+                                  color: Colors.transparent,
+                                  child: Center(
+                                    child: Container(
+                                      width: 24,
+                                      height: 48,
+                                      decoration: BoxDecoration(
+                                        color: scheme.surface.withValues(
+                                          alpha: 0.8,
+                                        ),
+                                        borderRadius: const BorderRadius.only(
+                                          topRight: Radius.circular(8),
+                                          bottomRight: Radius.circular(8),
+                                        ),
+                                        border: Border.all(
+                                          color: scheme.outlineVariant,
+                                        ),
+                                      ),
+                                      child: IconButton(
+                                        padding: EdgeInsets.zero,
+                                        icon: Icon(
+                                          _leftPanelVisible
+                                              ? Icons.chevron_left
+                                              : Icons.chevron_right,
+                                          size: 20,
+                                          color: scheme.primary,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _leftPanelVisible =
+                                                !_leftPanelVisible;
+                                            if (_leftPanelVisible) {
+                                              _draggedLeftPanelWidth =
+                                                  defaultSidePanelWidth;
+                                            }
+                                          });
+                                        },
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+
+                          // --- RIGHT DRAG HANDLE (for Telemetry Panel) ---
                           Positioned(
                             right: 0,
                             top: 0,
@@ -551,26 +642,24 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                               behavior: HitTestBehavior.translucent,
                               onHorizontalDragUpdate: (details) {
                                 setState(() {
-                                  if (!_sidePanelVisible) {
-                                    // Pulling out from the right edge
+                                  if (!_rightPanelVisible) {
                                     if (details.delta.dx < -5) {
-                                      _sidePanelVisible = true;
-                                      _draggedPanelWidth =
+                                      _rightPanelVisible = true;
+                                      _draggedRightPanelWidth =
                                           defaultSidePanelWidth;
                                     }
                                   } else {
-                                    // Resizing
                                     final baseWidth =
-                                        _draggedPanelWidth ??
+                                        _draggedRightPanelWidth ??
                                         defaultSidePanelWidth;
                                     final newWidth =
                                         (baseWidth - details.delta.dx);
 
                                     if (newWidth < 40) {
-                                      _sidePanelVisible = false;
-                                      _draggedPanelWidth = 0.0;
+                                      _rightPanelVisible = false;
+                                      _draggedRightPanelWidth = 0.0;
                                     } else {
-                                      _draggedPanelWidth = newWidth.clamp(
+                                      _draggedRightPanelWidth = newWidth.clamp(
                                         minPanelWidth,
                                         maxPanelWidth,
                                       );
@@ -579,7 +668,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                 });
                               },
                               child: Container(
-                                width: 32, // Large enough grab area
+                                width: 32,
                                 color: Colors.transparent,
                                 child: Center(
                                   child: Container(
@@ -600,7 +689,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                     child: IconButton(
                                       padding: EdgeInsets.zero,
                                       icon: Icon(
-                                        _sidePanelVisible
+                                        _rightPanelVisible
                                             ? Icons.chevron_right
                                             : Icons.chevron_left,
                                         size: 20,
@@ -608,10 +697,10 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                       ),
                                       onPressed: () {
                                         setState(() {
-                                          _sidePanelVisible =
-                                              !_sidePanelVisible;
-                                          if (_sidePanelVisible) {
-                                            _draggedPanelWidth =
+                                          _rightPanelVisible =
+                                              !_rightPanelVisible;
+                                          if (_rightPanelVisible) {
+                                            _draggedRightPanelWidth =
                                                 defaultSidePanelWidth;
                                           }
                                         });
@@ -626,12 +715,9 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                       ),
                     ),
                   ),
-
-                  // RIGHT: side panel — camera feed on top, telemetry below.
-                  // Width is dynamic, and can be hidden (0 width).
-                  if (currentPanelWidth > 0)
+                  if (currentRightPanelWidth > 0)
                     SizedBox(
-                      width: currentPanelWidth,
+                      width: currentRightPanelWidth,
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
                         child: Column(
@@ -650,6 +736,166 @@ class _MainFlightScreenState extends State<MainFlightScreen>
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ConnectionLostOverlay extends StatelessWidget {
+  const _ConnectionLostOverlay({
+    required this.vehicleState,
+    required this.compact,
+    required this.onDismiss,
+  });
+  final VehicleState vehicleState;
+  final bool compact;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black54,
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            margin: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: scheme.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.danger, width: 2),
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.signal_wifi_off,
+                          color: AppColors.danger,
+                          size: 32,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'connection_lost'.tr().toUpperCase(),
+                          style: const TextStyle(
+                            color: AppColors.danger,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'last_telemetry_received'.tr(
+                        namedArgs: {
+                          'time':
+                              vehicleState.lastTelemetryTime
+                                  ?.toIso8601String()
+                                  .split('T')
+                                  .last
+                                  .substring(0, 8) ??
+                              '--',
+                        },
+                      ),
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
+                    const SizedBox(height: 16),
+                    _LastTelemetryGrid(vehicleState: vehicleState),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => context
+                          .read<ConnectionManager>()
+                          .connect(ip: '192.168.4.1', port: 14550),
+                      child: Text('reconnect'.tr().toUpperCase()),
+                    ),
+                  ],
+                ),
+                Positioned(
+                  right: -8,
+                  top: -8,
+                  child: IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: onDismiss,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LastTelemetryGrid extends StatelessWidget {
+  const _LastTelemetryGrid({required this.vehicleState});
+  final VehicleState vehicleState;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 16,
+      runSpacing: 16,
+      children: [
+        _LastTelemetryItem(
+          label: 'altitude',
+          value: '${vehicleState.lastKnownAlt?.toStringAsFixed(1) ?? '--'} m',
+          icon: Icons.height,
+        ),
+        _LastTelemetryItem(
+          label: 'speed',
+          value:
+              '${vehicleState.lastKnownSpeed?.toStringAsFixed(1) ?? '--'} m/s',
+          icon: Icons.speed,
+        ),
+        _LastTelemetryItem(
+          label: 'battery',
+          value:
+              '${vehicleState.lastKnownBattery?.toStringAsFixed(0) ?? '--'}%',
+          icon: Icons.battery_std,
+        ),
+        _LastTelemetryItem(
+          label: 'mode',
+          value: vehicleState.lastKnownMode ?? '--',
+          icon: Icons.settings_input_component,
+        ),
+      ],
+    );
+  }
+}
+
+class _LastTelemetryItem extends StatelessWidget {
+  const _LastTelemetryItem({
+    required this.label,
+    required this.value,
+    required this.icon,
+  });
+  final String label;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Icon(icon, color: scheme.primary, size: 20),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+        ),
+        Text(
+          label.tr(),
+          style: TextStyle(fontSize: 10, color: scheme.onSurfaceVariant),
+        ),
+      ],
     );
   }
 }

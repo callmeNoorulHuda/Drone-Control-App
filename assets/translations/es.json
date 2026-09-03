@@ -77,5 +77,20 @@
   "disabled": "Desactivado",
   "unknown": "Desconocido",
   "sys_health": "Salud del Sistema",
-  "close": "Cerrar"
+  "close": "Cerrar",
+  "tap_map_to_add_waypoints": "Toca el mapa para añadir puntos de ruta.",
+  "rtl_after_mission": "Volver a casa tras la misión",
+  "upload_mission": "Subir Misión",
+  "start_auto": "Iniciar AUTO",
+  "mission_planning": "Planificación de Misión",
+  "mission_ready": "Misión Lista",
+  "uploading": "Subiendo...",
+  "mission_uploaded": "Misión Subida",
+  "auto_active": "AUTO Activo",
+  "mission_complete": "Misión Completada",
+  "clear_all": "Limpiar Todo",
+  "last_telemetry_received": "Última telemetría recibida a las {time}",
+  "reconnect": "Reconectar",
+  "mode": "Modo",
+  "search_hint": "Buscar (ej. 33.6, 73.1 o 'Madrid')"
 }

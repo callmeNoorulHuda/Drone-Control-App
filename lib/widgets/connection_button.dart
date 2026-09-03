@@ -153,13 +153,17 @@ class _ConnectionButtonState extends State<ConnectionButton>
                   ],
                 ),
                 SizedBox(width: widget.compact ? 6 : 8),
-                Text(
-                  label.toUpperCase(),
-                  style: TextStyle(
-                    color: statusColor,
-                    fontSize: widget.compact ? 10.5 : 12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.8,
+                Flexible(
+                  child: Text(
+                    label.toUpperCase(),
+                    style: TextStyle(
+                      color: statusColor,
+                      fontSize: widget.compact ? 10.5 : 12,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: 0.8,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ),
               ],

@@ -2,6 +2,22 @@ import 'package:flutter/foundation.dart';
 import 'dart:math' as math;
 import 'connection_status.dart';
 import '../models/health_state.dart';
+import '../models/mission_waypoint.dart';
+
+enum MissionUploadStatus { idle, uploading, uploaded, failed }
+
+enum MissionExecutionState {
+  disconnected,
+  connected,
+  planning,
+  ready,
+  uploading,
+  uploaded,
+  failed,
+  active,
+  lost,
+  complete,
+}
 
 /// Holds "everything currently known about the drone" in one place.
 /// The MAVLink layer updates this as messages arrive; the UI layer only
@@ -45,6 +61,128 @@ class VehicleState extends ChangeNotifier {
   // true->false. Drives the flight timer.
   DateTime? armedSince;
 
+  // --- Mission & AUTO Mode State ------------------------------------
+  List<MissionWaypoint> missionWaypoints = [];
+  bool rtlAfterMission = true;
+  MissionUploadStatus missionUploadStatus = MissionUploadStatus.idle;
+  int? currentWaypointIndex;
+  double wifiRangeMeters = 500.0;
+
+  // Track if we are in AUTO mode (screen level state usually, but here for consistency)
+  bool isAutoMode = false;
+
+  // Last known telemetry for connection loss
+  double? lastKnownLat;
+  double? lastKnownLon;
+  double? lastKnownAlt;
+  double? lastKnownSpeed;
+  double? lastKnownBattery;
+  String? lastKnownMode;
+  int? lastKnownWaypoint;
+  DateTime? lastTelemetryTime;
+
+  MissionExecutionState get missionExecutionState {
+    if (connectionStatus != ConnectionStatus.connected) {
+      if (connectionLost) return MissionExecutionState.lost;
+      return MissionExecutionState.disconnected;
+    }
+
+    if (currentMode == 'AUTO') {
+      if (currentWaypointIndex != null &&
+          missionWaypoints.isNotEmpty &&
+          currentWaypointIndex! >= missionWaypoints.length) {
+        return MissionExecutionState.complete;
+      }
+      return MissionExecutionState.active;
+    }
+
+    if (missionUploadStatus == MissionUploadStatus.uploading)
+      return MissionExecutionState.uploading;
+    if (missionUploadStatus == MissionUploadStatus.uploaded)
+      return MissionExecutionState.uploaded;
+    if (missionUploadStatus == MissionUploadStatus.failed)
+      return MissionExecutionState.failed;
+
+    if (missionWaypoints.isNotEmpty) return MissionExecutionState.ready;
+
+    return MissionExecutionState.planning;
+  }
+
+  void setMissionWaypoints(List<MissionWaypoint> waypoints) {
+    missionWaypoints = waypoints;
+    missionUploadStatus = MissionUploadStatus.idle;
+    notifyListeners();
+  }
+
+  void addWaypoint(double lat, double lon) {
+    final seq = missionWaypoints.length;
+    missionWaypoints.add(MissionWaypoint(lat: lat, lon: lon, seq: seq));
+    missionUploadStatus = MissionUploadStatus.idle;
+    notifyListeners();
+  }
+
+  void updateWaypointAltitude(int index, double alt) {
+    if (index >= 0 && index < missionWaypoints.length) {
+      missionWaypoints[index].alt = alt;
+      missionUploadStatus = MissionUploadStatus.idle;
+      notifyListeners();
+    }
+  }
+
+  void removeWaypoint(int index) {
+    if (index >= 0 && index < missionWaypoints.length) {
+      missionWaypoints.removeAt(index);
+      // Re-sequence
+      for (int i = 0; i < missionWaypoints.length; i++) {
+        missionWaypoints[i] = missionWaypoints[i].copyWith(seq: i);
+      }
+      missionUploadStatus = MissionUploadStatus.idle;
+      notifyListeners();
+    }
+  }
+
+  void clearWaypoints() {
+    missionWaypoints.clear();
+    missionUploadStatus = MissionUploadStatus.idle;
+    currentWaypointIndex = null;
+    notifyListeners();
+  }
+
+  void reorderWaypoints(int oldIndex, int newIndex) {
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    final item = missionWaypoints.removeAt(oldIndex);
+    missionWaypoints.insert(newIndex, item);
+    // Re-sequence
+    for (int i = 0; i < missionWaypoints.length; i++) {
+      missionWaypoints[i] = missionWaypoints[i].copyWith(seq: i);
+    }
+    missionUploadStatus = MissionUploadStatus.idle;
+    notifyListeners();
+  }
+
+  void setRtlAfterMission(bool value) {
+    rtlAfterMission = value;
+    missionUploadStatus = MissionUploadStatus.idle;
+    notifyListeners();
+  }
+
+  void setMissionUploadStatus(MissionUploadStatus status) {
+    missionUploadStatus = status;
+    notifyListeners();
+  }
+
+  void applyMissionCurrent(int seq) {
+    currentWaypointIndex = seq;
+    notifyListeners();
+  }
+
+  void setWifiRange(double meters) {
+    wifiRangeMeters = meters;
+    notifyListeners();
+  }
+
   void setError(String message) {
     lastError = message;
     notifyListeners();
@@ -67,6 +205,8 @@ class VehicleState extends ChangeNotifier {
     currentMode = mode;
     lastHeartbeat = DateTime.now();
     connectionLost = false;
+    lastKnownMode = mode;
+    lastTelemetryTime = DateTime.now();
 
     if (justArmed) {
       armedSince = DateTime.now();
@@ -84,6 +224,8 @@ class VehicleState extends ChangeNotifier {
   void applyBattery({required double percent, required double voltage}) {
     batteryPercent = percent;
     batteryVoltage = voltage;
+    lastKnownBattery = percent;
+    lastTelemetryTime = DateTime.now();
     notifyListeners();
   }
 
@@ -181,6 +323,12 @@ class VehicleState extends ChangeNotifier {
     verticalSpeedMps = verticalSpeed;
     latitude = lat;
     longitude = lon;
+
+    lastKnownLat = lat;
+    lastKnownLon = lon;
+    lastKnownAlt = alt;
+    lastKnownSpeed = speed;
+    lastTelemetryTime = DateTime.now();
 
     // Fallback: if we armed before any GPS fix had arrived, the capture
     // in applyHeartbeat was skipped — grab it here instead, the first

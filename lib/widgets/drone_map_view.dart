@@ -7,6 +7,7 @@ import 'package:easy_localization/easy_localization.dart';
 import '../config/map_keys.dart';
 import '../state/marker_style.dart';
 import '../theme/app_theme.dart';
+import '../models/mission_waypoint.dart';
 
 class DroneMapView extends StatefulWidget {
   const DroneMapView({
@@ -20,6 +21,13 @@ class DroneMapView extends StatefulWidget {
     this.isMapDark = true,
     this.markerStyle = MarkerStyle.drone,
     this.useSatelliteMap = false,
+    this.onMapTap,
+    this.waypoints = const [],
+    this.homeLat,
+    this.homeLon,
+    this.currentWaypointIndex,
+    this.wifiRangeMeters = 500.0,
+    this.showSearch = true,
   });
 
   final double latitude;
@@ -31,6 +39,13 @@ class DroneMapView extends StatefulWidget {
   final bool isMapDark;
   final MarkerStyle markerStyle;
   final bool useSatelliteMap;
+  final Function(ll.LatLng)? onMapTap;
+  final List<MissionWaypoint> waypoints;
+  final double? homeLat;
+  final double? homeLon;
+  final int? currentWaypointIndex;
+  final double wifiRangeMeters;
+  final bool showSearch;
 
   @override
   State<DroneMapView> createState() => _DroneMapViewState();
@@ -83,16 +98,11 @@ class _DroneMapViewState extends State<DroneMapView> {
                     setState(() => _followDrone = false);
                   }
                 },
+                onTap: (tapPosition, point) {
+                  widget.onMapTap?.call(point);
+                },
               ),
               children: [
-                // Plain flutter_map TileLayer — no wrapper package.
-                // Satellite = Esri World Imagery (ArcGIS), always keyless.
-                // Street uses CARTO's dark_all/light_all raster styles when
-                // a free CARTO key is supplied (see lib/config/map_keys.dart),
-                // driven by isMapDark (the map's own theme, independent of
-                // the app's isDarkMode). If no key was supplied at build
-                // time, falls back to plain keyless OSM tiles (light only)
-                // instead of showing a broken/watermarked map.
                 widget.useSatelliteMap
                     ? TileLayer(
                         urlTemplate:
@@ -117,9 +127,55 @@ class _DroneMapViewState extends State<DroneMapView> {
                         userAgentPackageName: 'com.safesky.drone_control',
                         maxNativeZoom: 19,
                       ),
-                if (widget.hasFix)
-                  MarkerLayer(
-                    markers: [
+                if (widget.waypoints.length > 1)
+                  PolylineLayer(
+                    polylines: [
+                      Polyline(
+                        points: widget.waypoints
+                            .map((w) => w.toLatLng)
+                            .toList(),
+                        color: AppColors.amber.withValues(alpha: 0.7),
+                        strokeWidth: 3.0,
+                      ),
+                    ],
+                  ),
+                MarkerLayer(
+                  markers: [
+                    if (widget.homeLat != null && widget.homeLon != null)
+                      Marker(
+                        point: ll.LatLng(widget.homeLat!, widget.homeLon!),
+                        width: 50,
+                        height: 50,
+                        child: _HomeMarker(isDarkMode: widget.isDarkMode),
+                      ),
+                    ...widget.waypoints.asMap().entries.map((entry) {
+                      final i = entry.key;
+                      final wp = entry.value;
+                      final isActive = widget.currentWaypointIndex == i;
+                      final isDone =
+                          widget.currentWaypointIndex != null &&
+                          i < widget.currentWaypointIndex!;
+
+                      final dist = ll.Distance().as(
+                        ll.LengthUnit.Meter,
+                        _point,
+                        wp.toLatLng,
+                      );
+                      final tooFar = dist > widget.wifiRangeMeters;
+
+                      return Marker(
+                        point: wp.toLatLng,
+                        width: 45,
+                        height: 45,
+                        child: _WaypointMarker(
+                          index: i + 1,
+                          isActive: isActive,
+                          isDone: isDone,
+                          tooFar: tooFar,
+                        ),
+                      );
+                    }),
+                    if (widget.hasFix)
                       Marker(
                         point: _point,
                         width: 60,
@@ -131,8 +187,8 @@ class _DroneMapViewState extends State<DroneMapView> {
                           style: widget.markerStyle,
                         ),
                       ),
-                    ],
-                  ),
+                  ],
+                ),
                 RichAttributionWidget(
                   alignment: AttributionAlignment.bottomLeft,
                   popupInitialDisplayDuration: const Duration(seconds: 3),
@@ -152,9 +208,22 @@ class _DroneMapViewState extends State<DroneMapView> {
               ],
             ),
             if (!widget.hasFix) _NoFixBanner(isDarkMode: widget.isDarkMode),
+            if (widget.showSearch)
+              Positioned(
+                left: 12,
+                top: 12,
+                right: 60,
+                child: _SearchBar(
+                  onSearch: (point) {
+                    setState(() => _followDrone = false);
+                    _mapController.move(point, 17);
+                  },
+                  isDarkMode: widget.isDarkMode,
+                ),
+              ),
             Positioned(
               left: 12,
-              top: 12,
+              top: widget.showSearch ? 60 : 12,
               child: Column(
                 children: [
                   _CompassBadge(
@@ -178,10 +247,6 @@ class _DroneMapViewState extends State<DroneMapView> {
   }
 }
 
-// Marker rendering — now that every MarkerStyle option is SVG-based (the
-// built-in "simple" arrow icon option was replaced by a 3rd real SVG, see
-// state/marker_style.dart), this no longer needs a per-case switch — it
-// just reads whichever asset path the current style maps to.
 class _PositionMarker extends StatelessWidget {
   const _PositionMarker({
     required this.headingDegrees,
@@ -276,7 +341,6 @@ class _CompassBadge extends StatelessWidget {
               ),
             ),
           ),
-
           Positioned(
             top: 15,
             child: AnimatedRotation(
@@ -330,6 +394,48 @@ class _NoFixBanner extends StatelessWidget {
   }
 }
 
+class _HomeMarker extends StatelessWidget {
+  const _HomeMarker({required this.isDarkMode});
+  final bool isDarkMode;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Colors.blue.withValues(alpha: 0.2),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.blue, width: 2),
+          ),
+        ),
+        const Icon(Icons.home, color: Colors.blue, size: 24),
+        Positioned(
+          bottom: 0,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: const Text(
+              'HOME',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RecenterButton extends StatelessWidget {
   const _RecenterButton({
     required this.active,
@@ -365,6 +471,181 @@ class _RecenterButton extends StatelessWidget {
           ],
         ),
         child: Icon(Icons.my_location, size: 20, color: color),
+      ),
+    );
+  }
+}
+
+class _WaypointMarker extends StatelessWidget {
+  const _WaypointMarker({
+    required this.index,
+    required this.isActive,
+    required this.isDone,
+    required this.tooFar,
+  });
+
+  final int index;
+  final bool isActive;
+  final bool isDone;
+  final bool tooFar;
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        if (isActive) const _PulseRing(color: AppColors.amber),
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: isDone
+                ? Colors.grey
+                : (tooFar ? AppColors.danger : AppColors.amber),
+            shape: BoxShape.circle,
+            border: Border.all(color: Colors.white, width: 2),
+            boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
+          ),
+          child: Center(
+            child: Text(
+              '$index',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ),
+        if (isDone)
+          const Positioned(
+            right: 0,
+            bottom: 0,
+            child: Icon(Icons.check_circle, color: Colors.green, size: 16),
+          ),
+        if (tooFar)
+          const Positioned(
+            left: 0,
+            top: 0,
+            child: Icon(Icons.warning, color: Colors.white, size: 14),
+          ),
+      ],
+    );
+  }
+}
+
+class _PulseRing extends StatefulWidget {
+  const _PulseRing({required this.color});
+  final Color color;
+
+  @override
+  State<_PulseRing> createState() => _PulseRingState();
+}
+
+class _PulseRingState extends State<_PulseRing>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Container(
+          width: 30 + (20 * _controller.value),
+          height: 30 + (20 * _controller.value),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: widget.color.withValues(alpha: 1 - _controller.value),
+              width: 2,
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _SearchBar extends StatefulWidget {
+  const _SearchBar({required this.onSearch, required this.isDarkMode});
+  final Function(ll.LatLng) onSearch;
+  final bool isDarkMode;
+
+  @override
+  State<_SearchBar> createState() => _SearchBarState();
+}
+
+class _SearchBarState extends State<_SearchBar> {
+  final TextEditingController _controller = TextEditingController();
+
+  void _handleSearch() {
+    final text = _controller.text;
+    if (text.isEmpty) return;
+
+    final parts = text.split(',');
+    if (parts.length == 2) {
+      final lat = double.tryParse(parts[0].trim());
+      final lon = double.tryParse(parts[1].trim());
+      if (lat != null && lon != null) {
+        widget.onSearch(ll.LatLng(lat, lon));
+        return;
+      }
+    }
+
+    final mocks = {
+      'islamabad': ll.LatLng(33.6844, 73.0479),
+      'london': ll.LatLng(51.5074, -0.1278),
+      'new york': ll.LatLng(40.7128, -74.0060),
+    };
+
+    final mock = mocks[text.toLowerCase().trim()];
+    if (mock != null) {
+      widget.onSearch(mock);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = widget.isDarkMode ? AppColors.surface : Colors.white;
+    return Container(
+      height: 40,
+      decoration: BoxDecoration(
+        color: bg.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: widget.isDarkMode ? AppColors.hairline : Colors.black12,
+        ),
+        boxShadow: const [
+          BoxShadow(color: Colors.black26, blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: TextField(
+        controller: _controller,
+        onSubmitted: (_) => _handleSearch(),
+        decoration: InputDecoration(
+          hintText: 'search_hint'.tr(),
+          hintStyle: const TextStyle(fontSize: 12),
+          prefixIcon: const Icon(Icons.search, size: 20),
+          border: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+        ),
+        style: const TextStyle(fontSize: 14),
       ),
     );
   }

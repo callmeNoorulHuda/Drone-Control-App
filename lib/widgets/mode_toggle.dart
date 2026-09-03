@@ -35,19 +35,23 @@ class ModeToggle extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _Segment(
-            label: 'manual'.tr().toUpperCase(),
-            active: manual,
-            onTap: () => onChanged(true),
-            fontSize: fontSize,
-            hPad: hPad,
+          Flexible(
+            child: _Segment(
+              label: 'manual'.tr().toUpperCase(),
+              active: manual,
+              onTap: () => onChanged(true),
+              fontSize: fontSize,
+              hPad: hPad,
+            ),
           ),
-          _Segment(
-            label: 'auto'.tr().toUpperCase(),
-            active: !manual,
-            onTap: () => onChanged(false),
-            fontSize: fontSize,
-            hPad: hPad,
+          Flexible(
+            child: _Segment(
+              label: 'auto'.tr().toUpperCase(),
+              active: !manual,
+              onTap: () => onChanged(false),
+              fontSize: fontSize,
+              hPad: hPad,
+            ),
           ),
         ],
       ),
@@ -92,6 +96,8 @@ class _Segment extends StatelessWidget {
             letterSpacing: 0.4,
             color: active ? Colors.white : scheme.onSurfaceVariant,
           ),
+          overflow: TextOverflow.ellipsis,
+          maxLines: 1,
         ),
       ),
     );
