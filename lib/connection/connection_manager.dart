@@ -146,11 +146,8 @@ class ConnectionManager {
 
   void _handleFrame(MavlinkFrame frame) {
     final message = frame.message;
-    // print('[DEBUG] Received message type: ${message.runtimeType}');
+
     if (message is CommandAck) {
-      // print(
-      //   '[ConnectionManager] CommandAck — command: ${message.command}, result: ${message.result}',
-      // );
       if (message.result != mavResultAccepted) {
         vehicleState.setError(_describeCommandResult(message.result));
       }
@@ -170,9 +167,6 @@ class ConnectionManager {
       final modeName =
           _ardupilotModeNames[message.customMode] ??
           message.customMode.toString();
-      // print(
-      //   '[ConnectionManager] Heartbeat received — armed: $armed, mode: ${message.customMode}',
-      // );
       vehicleState.applyHeartbeat(armed: armed, mode: modeName);
     }
 
