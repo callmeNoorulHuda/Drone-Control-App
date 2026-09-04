@@ -42,21 +42,22 @@ class TelemetryDetailScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: true,
         title: Text(
           'full_telemetry'.tr().toUpperCase(),
-          style: const TextStyle(
+          style: TextStyle(
+            color: scheme.onSurface,
             fontWeight: FontWeight.w900,
             letterSpacing: 2,
             fontFamily: 'monospace',
           ),
         ),
         leading: IconButton(
-          icon: const Icon(Icons.close),
+          icon: Icon(Icons.close, color: scheme.onSurface),
           onPressed: () => Navigator.of(context).pop(),
         ),
         flexibleSpace: ClipRect(

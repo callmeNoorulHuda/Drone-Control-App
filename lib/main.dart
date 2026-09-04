@@ -11,6 +11,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await EasyLocalization.ensureInitialized();
 
+  // Silence useless translation warnings
+  EasyLocalization.logger.printer = (object, {level, name, stackTrace}) {};
+  EasyLocalization.logger.enableLevels = [];
+
   runApp(
     EasyLocalization(
       supportedLocales: const [

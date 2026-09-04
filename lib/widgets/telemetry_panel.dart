@@ -84,13 +84,17 @@ class TelemetryPanel extends StatelessWidget {
                                 color: scheme.primary,
                               ),
                               const SizedBox(width: 8),
-                              Text(
-                                'telemetry'.tr().toUpperCase(),
-                                style: TextStyle(
-                                  color: scheme.onSurface,
-                                  fontSize: compact ? 12 : 14,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 2.0,
+                              Flexible(
+                                child: Text(
+                                  'telemetry'.tr().toUpperCase(),
+                                  style: TextStyle(
+                                    color: scheme.onSurface,
+                                    fontSize: compact ? 12 : 14,
+                                    fontWeight: FontWeight.w900,
+                                    letterSpacing: 2.0,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
                             ],

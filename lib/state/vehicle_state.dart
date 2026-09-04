@@ -81,6 +81,8 @@ class VehicleState extends ChangeNotifier {
   int? lastKnownWaypoint;
   DateTime? lastTelemetryTime;
 
+  final Set<int> reachedWaypoints = {};
+
   MissionExecutionState get missionExecutionState {
     if (connectionStatus != ConnectionStatus.connected) {
       if (connectionLost) return MissionExecutionState.lost;
@@ -90,7 +92,7 @@ class VehicleState extends ChangeNotifier {
     if (currentMode == 'AUTO') {
       if (currentWaypointIndex != null &&
           missionWaypoints.isNotEmpty &&
-          currentWaypointIndex! >= missionWaypoints.length) {
+          currentWaypointIndex! > (missionWaypoints.length + 1)) {
         return MissionExecutionState.complete;
       }
       return MissionExecutionState.active;
@@ -145,6 +147,7 @@ class VehicleState extends ChangeNotifier {
     missionWaypoints.clear();
     missionUploadStatus = MissionUploadStatus.idle;
     currentWaypointIndex = null;
+    reachedWaypoints.clear();
     notifyListeners();
   }
 
@@ -175,6 +178,10 @@ class VehicleState extends ChangeNotifier {
 
   void applyMissionCurrent(int seq) {
     currentWaypointIndex = seq;
+
+    // If the drone has moved to a later waypoint, we consider previous waypoints
+    // as "done" only if they were actually reached (proximity check in applyPosition)
+    // or if the mission has progressed significantly.
     notifyListeners();
   }
 
@@ -330,6 +337,18 @@ class VehicleState extends ChangeNotifier {
     lastKnownSpeed = speed;
     lastTelemetryTime = DateTime.now();
 
+    // Check proximity to current waypoint to mark it as reached
+    if (currentWaypointIndex != null && currentWaypointIndex! >= 2) {
+      final userIndex = currentWaypointIndex! - 2;
+      if (userIndex < missionWaypoints.length) {
+        final wp = missionWaypoints[userIndex];
+        final dist = _calculateDistance(lat, lon, wp.lat, wp.lon);
+        if (dist < 15.0) {
+          reachedWaypoints.add(currentWaypointIndex!);
+        }
+      }
+    }
+
     // Fallback: if we armed before any GPS fix had arrived, the capture
     // in applyHeartbeat was skipped — grab it here instead, the first
     // time a fix arrives while armed.
@@ -338,6 +357,25 @@ class VehicleState extends ChangeNotifier {
       homeLongitude = lon;
     }
     notifyListeners();
+  }
+
+  double _calculateDistance(
+    double lat1,
+    double lon1,
+    double lat2,
+    double lon2,
+  ) {
+    const earthRadiusMeters = 6371000.0;
+    final dLat = _degToRad(lat2 - lat1);
+    final dLon = _degToRad(lon2 - lon1);
+    final a =
+        math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(_degToRad(lat1)) *
+            math.cos(_degToRad(lat2)) *
+            math.sin(dLon / 2) *
+            math.sin(dLon / 2);
+    final c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return earthRadiusMeters * c;
   }
 
   double? get distanceToHomeMeters {

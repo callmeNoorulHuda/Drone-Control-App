@@ -151,16 +151,26 @@ class _DroneMapViewState extends State<DroneMapView> {
                     ...widget.waypoints.asMap().entries.map((entry) {
                       final i = entry.key;
                       final wp = entry.value;
-                      final isActive = widget.currentWaypointIndex == i;
-                      final isDone =
-                          widget.currentWaypointIndex != null &&
-                          i < widget.currentWaypointIndex!;
+
+                      // Sequence 0=Home, 1=Takeoff, 2=First user waypoint
+                      final wpSeq = i + 2;
+                      final isActive = widget.currentWaypointIndex == wpSeq;
 
                       final dist = ll.Distance().as(
                         ll.LengthUnit.Meter,
                         _point,
                         wp.toLatLng,
                       );
+
+                      // Match logic in AutoMissionPanel for "done" status
+                      final hasPassed =
+                          widget.currentWaypointIndex != null &&
+                          widget.currentWaypointIndex! > wpSeq;
+                      final isDone =
+                          hasPassed &&
+                          (dist < 15.0 ||
+                              widget.currentWaypointIndex! > wpSeq + 1);
+
                       final tooFar = dist > widget.wifiRangeMeters;
 
                       return Marker(

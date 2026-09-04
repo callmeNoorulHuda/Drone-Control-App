@@ -400,14 +400,17 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // LEFT: AUTO Mission Panel (if in AUTO mode)
-                  if (currentLeftPanelWidth > 0)
-                    SizedBox(
-                      width: currentLeftPanelWidth,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(gap, gap, 0, gap),
-                        child: AutoMissionPanel(compact: !tablet),
-                      ),
-                    ),
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    width: currentLeftPanelWidth,
+                    child: currentLeftPanelWidth > 0
+                        ? Padding(
+                            padding: EdgeInsets.fromLTRB(gap, gap, 0, gap),
+                            child: AutoMissionPanel(compact: !tablet),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
 
                   // CENTER: Map and Overlays
                   Expanded(
@@ -432,10 +435,19 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                             markerStyle: settings.markerStyle,
                             useSatelliteMap: settings.useSatelliteMap,
                             onMapTap: (point) {
-                              if (!_manualMode) {
+                              if (!_manualMode && connected) {
                                 vehicleState.addWaypoint(
                                   point.latitude,
                                   point.longitude,
+                                );
+                              } else if (!_manualMode && !connected) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text(
+                                      'Connect to the drone to add waypoints.',
+                                    ),
+                                    duration: Duration(seconds: 2),
+                                  ),
                                 );
                               }
                             },
@@ -558,10 +570,12 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                           if (!_manualMode)
                             Positioned(
                               left: 0,
-                              top: 0,
-                              bottom: 0,
+                              bottom: edgeInset + joystickSize + 20,
                               child: GestureDetector(
                                 behavior: HitTestBehavior.translucent,
+                                onTap: () => setState(
+                                  () => _leftPanelVisible = !_leftPanelVisible,
+                                ),
                                 onHorizontalDragUpdate: (details) {
                                   setState(() {
                                     if (!_leftPanelVisible) {
@@ -595,7 +609,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                   child: Center(
                                     child: Container(
                                       width: 24,
-                                      height: 48,
+                                      height: 64,
                                       decoration: BoxDecoration(
                                         color: scheme.surface.withValues(
                                           alpha: 0.8,
@@ -607,26 +621,22 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                         border: Border.all(
                                           color: scheme.outlineVariant,
                                         ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(
+                                              alpha: 0.1,
+                                            ),
+                                            blurRadius: 4,
+                                            offset: const Offset(2, 0),
+                                          ),
+                                        ],
                                       ),
-                                      child: IconButton(
-                                        padding: EdgeInsets.zero,
-                                        icon: Icon(
-                                          _leftPanelVisible
-                                              ? Icons.chevron_left
-                                              : Icons.chevron_right,
-                                          size: 20,
-                                          color: scheme.primary,
-                                        ),
-                                        onPressed: () {
-                                          setState(() {
-                                            _leftPanelVisible =
-                                                !_leftPanelVisible;
-                                            if (_leftPanelVisible) {
-                                              _draggedLeftPanelWidth =
-                                                  defaultSidePanelWidth;
-                                            }
-                                          });
-                                        },
+                                      child: Icon(
+                                        _leftPanelVisible
+                                            ? Icons.chevron_left
+                                            : Icons.chevron_right,
+                                        size: 20,
+                                        color: scheme.primary,
                                       ),
                                     ),
                                   ),
@@ -637,10 +647,12 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                           // --- RIGHT DRAG HANDLE (for Telemetry Panel) ---
                           Positioned(
                             right: 0,
-                            top: 0,
-                            bottom: 0,
+                            bottom: edgeInset + joystickSize + 20,
                             child: GestureDetector(
                               behavior: HitTestBehavior.translucent,
+                              onTap: () => setState(
+                                () => _rightPanelVisible = !_rightPanelVisible,
+                              ),
                               onHorizontalDragUpdate: (details) {
                                 setState(() {
                                   if (!_rightPanelVisible) {
@@ -674,7 +686,7 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                 child: Center(
                                   child: Container(
                                     width: 24,
-                                    height: 48,
+                                    height: 64,
                                     decoration: BoxDecoration(
                                       color: scheme.surface.withValues(
                                         alpha: 0.8,
@@ -686,26 +698,22 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                                       border: Border.all(
                                         color: scheme.outlineVariant,
                                       ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withValues(
+                                            alpha: 0.1,
+                                          ),
+                                          blurRadius: 4,
+                                          offset: const Offset(-2, 0),
+                                        ),
+                                      ],
                                     ),
-                                    child: IconButton(
-                                      padding: EdgeInsets.zero,
-                                      icon: Icon(
-                                        _rightPanelVisible
-                                            ? Icons.chevron_right
-                                            : Icons.chevron_left,
-                                        size: 20,
-                                        color: scheme.primary,
-                                      ),
-                                      onPressed: () {
-                                        setState(() {
-                                          _rightPanelVisible =
-                                              !_rightPanelVisible;
-                                          if (_rightPanelVisible) {
-                                            _draggedRightPanelWidth =
-                                                defaultSidePanelWidth;
-                                          }
-                                        });
-                                      },
+                                    child: Icon(
+                                      _rightPanelVisible
+                                          ? Icons.chevron_right
+                                          : Icons.chevron_left,
+                                      size: 20,
+                                      color: scheme.primary,
                                     ),
                                   ),
                                 ),
@@ -716,21 +724,30 @@ class _MainFlightScreenState extends State<MainFlightScreen>
                       ),
                     ),
                   ),
-                  if (currentRightPanelWidth > 0)
-                    SizedBox(
-                      width: currentRightPanelWidth,
-                      child: Padding(
-                        padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            CameraFeedPanel(connected: true, compact: !tablet),
-                            SizedBox(height: gap),
-                            Expanded(child: TelemetryPanel(compact: !tablet)),
-                          ],
-                        ),
-                      ),
-                    ),
+                  // RIGHT: Telemetry Panel
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    width: currentRightPanelWidth,
+                    child: currentRightPanelWidth > 0
+                        ? Padding(
+                            padding: EdgeInsets.fromLTRB(0, gap, gap, gap),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                CameraFeedPanel(
+                                  connected: true,
+                                  compact: !tablet,
+                                ),
+                                SizedBox(height: gap),
+                                Expanded(
+                                  child: TelemetryPanel(compact: !tablet),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
