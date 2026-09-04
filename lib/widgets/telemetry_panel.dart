@@ -61,9 +61,9 @@ class TelemetryPanel extends StatelessWidget {
                   ),
                   boxShadow: [
                     BoxShadow(
-                      color: isDark ? Colors.black45 : Colors.black12,
-                      blurRadius: 15,
-                      offset: const Offset(0, 8),
+                      color: isDark ? Colors.black54 : Colors.black26,
+                      blurRadius: 18,
+                      offset: const Offset(0, 10),
                     ),
                   ],
                 ),

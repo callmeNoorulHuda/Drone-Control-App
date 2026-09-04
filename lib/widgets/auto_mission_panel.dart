@@ -716,7 +716,7 @@ class _MissionControls extends StatelessWidget {
             _ActionButton(
               onPressed:
                   connected && executionState != MissionExecutionState.uploading
-                  ? () => connectionManager.uploadMission(
+                  ? () => connectionManager.uploadAndStartMission(
                       waypoints,
                       rtlAfter: vehicleState.rtlAfterMission,
                     )
@@ -739,7 +739,7 @@ class _MissionControls extends StatelessWidget {
               label:
                   (executionState == MissionExecutionState.failed
                           ? 'retry_upload'
-                          : 'upload_mission')
+                          : 'upload_and_start_mission')
                       .tr()
                       .toUpperCase(),
               color: executionState == MissionExecutionState.failed

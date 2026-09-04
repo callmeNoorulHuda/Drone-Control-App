@@ -1,3 +1,6 @@
+import 'dart:io' show Platform;
+import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -33,6 +36,14 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
   }
 
   Future<void> _initializeCamera() async {
+    // The 'camera' package currently only supports Android, iOS, and Web
+    // natively. On Windows, it throws a MissingPluginException unless
+    // 'camera_windows' is explicitly added and configured.
+    if (!kIsWeb && Platform.isWindows) {
+      debugPrint('Camera plugin not supported on Windows. Skipping.');
+      return;
+    }
+
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) return;
@@ -77,8 +88,18 @@ class _CameraFeedPanelState extends State<CameraFeedPanel> {
           borderRadius: BorderRadius.circular(widget.compact ? 12 : 16),
           child: Container(
             decoration: BoxDecoration(
-              color: scheme.surface,
-              border: Border.all(color: scheme.outlineVariant),
+              color: scheme.surface.withValues(alpha: 0.85),
+              borderRadius: BorderRadius.circular(widget.compact ? 12 : 16),
+              border: Border.all(
+                color: scheme.outlineVariant.withValues(alpha: 0.4),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.5),
+                  blurRadius: 18,
+                  offset: const Offset(0, 10),
+                ),
+              ],
             ),
             child: Stack(
               fit: StackFit.expand,

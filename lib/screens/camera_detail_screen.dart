@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:ultralytics_yolo/ultralytics_yolo.dart';
 import '../theme/app_theme.dart';
@@ -24,12 +26,18 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // YOLOView and the 'camera' plugin it depends on usually don't support
+    // Windows natively. We force the 'No Signal' state on Windows to avoid
+    // plugin errors.
+    final bool canShowCamera =
+        widget.connected && (kIsWeb || !Platform.isWindows);
+
     return Scaffold(
       backgroundColor: Colors.black,
       body: Stack(
         fit: StackFit.expand,
         children: [
-          if (widget.connected)
+          if (canShowCamera)
             YOLOView(
               // Official pretrained model — downloads once on first run, then
               // caches locally. No internet needed after that (including mid-flight).
@@ -50,9 +58,11 @@ class _CameraDetailScreenState extends State<CameraDetailScreen> {
                       color: AppColors.textSecondary,
                     ),
                     const SizedBox(height: 16),
-                    const Text(
-                      'NO SIGNAL',
-                      style: TextStyle(
+                    Text(
+                      (!kIsWeb && Platform.isWindows)
+                          ? 'CAMERA NOT SUPPORTED ON WINDOWS'
+                          : 'NO SIGNAL',
+                      style: const TextStyle(
                         color: AppColors.textSecondary,
                         fontWeight: FontWeight.bold,
                         letterSpacing: 1.2,

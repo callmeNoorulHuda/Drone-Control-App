@@ -81,6 +81,7 @@
   "tap_map_to_add_waypoints": "Toca el mapa para añadir puntos de ruta.",
   "rtl_after_mission": "Volver a casa tras la misión",
   "upload_mission": "Subir Misión",
+  "upload_and_start": "Subir e Iniciar",
   "start_auto": "Iniciar AUTO",
   "mission_planning": "Planificación de Misión",
   "mission_ready": "Misión Lista",
@@ -92,5 +93,11 @@
   "last_telemetry_received": "Última telemetría recibida a las {time}",
   "reconnect": "Reconectar",
   "mode": "Modo",
-  "search_hint": "Buscar (ej. 33.6, 73.1 o 'Madrid')"
+  "search_hint": "Buscar (ej. 33.6, 73.1 o 'Madrid')",
+  "mission_failed": "Misión fallida",
+  "upload_failed_msg": "La carga expiró o fue rechazada.",
+  "last_telemetry_msg": "Se muestra la última telemetría conocida.",
+  "mission_complete_msg": "Punto de ruta final alcanzado.",
+  "retry_upload": "Reintentar carga",
+  "waypoint_out_of_range": "Algunos puntos de ruta están fuera del alcance estimado de Wi-Fi."
 }

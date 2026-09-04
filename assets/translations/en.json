@@ -81,6 +81,7 @@
   "tap_map_to_add_waypoints": "Tap the map to add waypoints.",
   "rtl_after_mission": "Return to Launch after mission",
   "upload_mission": "Upload Mission",
+  "upload_and_start": "Upload & Start",
   "start_auto": "Start AUTO",
   "mission_planning": "Mission Planning",
   "mission_ready": "Mission Ready",
@@ -94,5 +95,9 @@
   "reconnect": "Reconnect",
   "mode": "Mode",
   "search_hint": "Search (e.g. 33.6, 73.1 or 'Islamabad')",
-  "waypoint_out_of_range": "Some waypoints are outside the estimated Wi-Fi range."
+  "waypoint_out_of_range": "Some waypoints are outside the estimated Wi-Fi range.",
+  "mission_failed": "Mission Failed",
+  "upload_failed_msg": "Upload timed out or rejected.",
+  "last_telemetry_msg": "Last known telemetry shown.",
+  "mission_complete_msg": "Final waypoint reached."
 }

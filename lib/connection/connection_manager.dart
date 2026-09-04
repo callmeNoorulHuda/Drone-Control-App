@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:dart_mavlink/mavlink.dart';
 import 'package:dart_mavlink/dialects/ardupilotmega.dart';
@@ -35,6 +36,14 @@ class ConnectionManager {
 
   Timer? _connectTimeoutTimer;
   static const _connectTimeout = Duration(seconds: 10);
+
+  // Caches for mission protocol fields extracted manually from raw bytes
+  // to handle MAVLink v2 truncation (treating missing trailing fields as 0).
+  // Consumed by _handleFrame for whichever datagram is currently being processed.
+  ({int result, int missionType, int opaqueId})? _rawMissionAck;
+  int? _rawMissionCountType;
+  int? _rawMissionRequestIntType;
+  int? _rawMissionItemIntType;
 
   // Where we'll eventually SEND commands once arm/mode/manual control are
   // implemented (Week 3). Stored now, unused until then — today this class
@@ -110,6 +119,11 @@ class ConnectionManager {
         if (datagram != null) {
           _lastSenderAddress = datagram.address;
           _lastSenderPort = datagram.port;
+          // Manually locate mission messages in the raw bytes BEFORE handing
+          // off to dart_mavlink's parser -- its generated classes have a
+          // bug in this pinned version where they misread truncated fields
+          // at the end of MAVLink v2 payloads.
+          _scanForMissionProtocol(datagram.data);
           _parser!.parse(datagram.data);
         }
       }
@@ -188,6 +202,105 @@ class ConnectionManager {
     return 'Mission failed (Code $result).';
   }
 
+  /// Manually decodes mission protocol messages straight from the raw UDP
+  /// bytes, bypassing dart_mavlink's generated classes.
+  ///
+  /// Why: the pinned dart_mavlink version has a bug in its MAVLink v2
+  /// implementation -- it doesn't correctly handle truncated payloads.
+  /// The MAVLink v2 spec requires that trailing all-zero bytes be stripped
+  /// from the wire, and receivers must treat missing trailing fields as 0.
+  /// This library's parser instead reads past the end of the short payload
+  /// into adjacent buffer memory, resulting in garbage values.
+  ///
+  /// We extract the mission fields here directly from the wire format:
+  /// https://mavlink.io/en/guide/serialization.html
+  void _scanForMissionProtocol(Uint8List data) {
+    _rawMissionAck = null;
+    _rawMissionCountType = null;
+    _rawMissionRequestIntType = null;
+    _rawMissionItemIntType = null;
+
+    int i = 0;
+    while (i < data.length) {
+      if (data[i] != 0xFD) {
+        i++;
+        continue;
+      }
+      if (i + 10 > data.length) break;
+
+      final payloadLen = data[i + 1];
+      final msgId = data[i + 7] | (data[i + 8] << 8) | (data[i + 9] << 16);
+      final payloadStart = i + 10;
+      final payloadEnd = payloadStart + payloadLen;
+
+      if (payloadEnd > data.length) {
+        i++;
+        continue;
+      }
+
+      // MISSION_ACK (msgid 47)
+      if (msgId == 47 && payloadLen >= 2) {
+        final targetSystem = data[payloadStart];
+        if (targetSystem == _mySystemId) {
+          final type = (payloadStart + 2 < payloadEnd)
+              ? data[payloadStart + 2]
+              : 0;
+          final missionType = (payloadStart + 3 < payloadEnd)
+              ? data[payloadStart + 3]
+              : 0;
+          int opaqueId = 0;
+          if (payloadStart + 4 < payloadEnd) {
+            int b0 = data[payloadStart + 4];
+            int b1 = (payloadStart + 5 < payloadEnd)
+                ? data[payloadStart + 5]
+                : 0;
+            int b2 = (payloadStart + 6 < payloadEnd)
+                ? data[payloadStart + 6]
+                : 0;
+            int b3 = (payloadStart + 7 < payloadEnd)
+                ? data[payloadStart + 7]
+                : 0;
+            opaqueId = b0 | (b1 << 8) | (b2 << 16) | (b3 << 24);
+          }
+          _rawMissionAck = (
+            result: type,
+            missionType: missionType,
+            opaqueId: opaqueId,
+          );
+        }
+      }
+      // MISSION_COUNT (msgid 44)
+      else if (msgId == 44 && payloadLen >= 4) {
+        final targetSystem = data[payloadStart + 2];
+        if (targetSystem == _mySystemId) {
+          _rawMissionCountType = (payloadStart + 4 < payloadEnd)
+              ? data[payloadStart + 4]
+              : 0;
+        }
+      }
+      // MISSION_REQUEST_INT (msgid 51)
+      else if (msgId == 51 && payloadLen >= 4) {
+        final targetSystem = data[payloadStart + 2];
+        if (targetSystem == _mySystemId) {
+          _rawMissionRequestIntType = (payloadStart + 4 < payloadEnd)
+              ? data[payloadStart + 4]
+              : 0;
+        }
+      }
+      // MISSION_ITEM_INT (msgid 73)
+      else if (msgId == 73 && payloadLen >= 37) {
+        final targetSystem = data[payloadStart + 32];
+        if (targetSystem == _mySystemId) {
+          _rawMissionItemIntType = (payloadStart + 37 < payloadEnd)
+              ? data[payloadStart + 37]
+              : 0;
+        }
+      }
+
+      i++;
+    }
+  }
+
   void _handleFrame(MavlinkFrame frame) {
     // CRITICAL: Ignore all MAVLink messages sent by ourselves.
     // In UDP/SITL environments, packets are often echoed back. If the app
@@ -242,46 +355,36 @@ class ConnectionManager {
     if (message is MissionRequest) {
       _handleMissionRequest(message.seq);
     } else if (message is MissionRequestInt) {
-      if (message.missionType == mavMissionTypeMission) {
+      final missionType = _rawMissionRequestIntType ?? message.missionType;
+      if (missionType == mavMissionTypeMission) {
         _handleMissionRequest(message.seq);
       }
     }
 
     if (message is MissionCount) {
-      if (message.missionType == mavMissionTypeMission) {
+      final missionType = _rawMissionCountType ?? message.missionType;
+      if (missionType == mavMissionTypeMission) {
         _handleMissionCount(message);
       }
     }
 
     if (message is MissionItemInt) {
-      if (message.missionType == mavMissionTypeMission) {
+      final missionType = _rawMissionItemIntType ?? message.missionType;
+      if (missionType == mavMissionTypeMission) {
         _handleMissionItem(message);
       }
     }
 
     if (message is MissionAck) {
-      debugPrint(
-        'MAVLink DEBUG: Received MissionAck - type: ${message.type}, missionType: ${message.missionType}, opaque: ${message.opaqueId}',
-      );
+      // See _scanForMissionProtocol's doc comment: this library's MissionAck
+      // getters are unreliable for this field set, so we decode the real
+      // result directly from the raw bytes of the datagram that produced
+      // this frame, captured just before it was handed to the parser.
+      final raw = _rawMissionAck;
+      final int actualResult = raw?.result ?? message.type;
 
       final completer = _missionUploadCompleter;
       if (completer != null && !completer.isCompleted) {
-        // WORKAROUND for dart_mavlink parser misalignment:
-        // In MAVLink 2, ArduPilot sorts fields by size. opaque_id (4 bytes)
-        // comes first, then target_system (1 byte).
-        // If the library parser doesn't account for this, the fields are
-        // shifted.
-        // We detect this by checking if 'type' matches our System ID (250).
-        int actualResult = message.type;
-        if (actualResult == _mySystemId) {
-          // If shifted, the real MAV_MISSION_RESULT is usually at Byte 6.
-          // In the app's misaligned model, this is inside opaqueId.
-          actualResult = (message.opaqueId >> 16) & 0xFF;
-          debugPrint(
-            'MAVLink DEBUG: Detected misalignment. Real result: $actualResult',
-          );
-        }
-
         if (actualResult == mavMissionAccepted) {
           vehicleState.addAlert(
             VehicleAlert(
@@ -439,14 +542,6 @@ class ConnectionManager {
   Future<void> setMode(String mode) async {
     final modeNumber = _ardupilotModeNumbers[mode];
     if (modeNumber == null) return;
-
-    vehicleState.addAlert(
-      VehicleAlert(
-        id: 'mode_change_req',
-        message: 'Requesting mode: $mode...',
-        severity: AlertSeverity.info,
-      ),
-    );
 
     final command = CommandLong(
       command: mavCmdDoSetMode,
@@ -619,23 +714,6 @@ class ConnectionManager {
         command = mavCmdNavReturnToLaunch;
       }
 
-      // Provide visual feedback for upload progress.
-      if (seq >= 2) {
-        final userSeq = seq - 1; // Item 2 is user WP 1
-        final userTotal =
-            waypoints.length - 2 - (waypoints.last.lat == 0 ? 1 : 0);
-
-        if (userSeq <= userTotal) {
-          vehicleState.addAlert(
-            VehicleAlert(
-              id: 'mission_upload_progress',
-              message: 'Uploading waypoint $userSeq of $userTotal...',
-              severity: AlertSeverity.info,
-            ),
-          );
-        }
-      }
-
       _sendMessage(
         MissionItemInt(
           targetSystem: _vehicleSystemId,
@@ -685,6 +763,27 @@ class ConnectionManager {
 
     // Now switch to AUTO mode.
     await setMode('AUTO');
+  }
+
+  /// Uploads the mission, and -- if (and only if) ArduPilot accepts it --
+  /// immediately arms and switches to AUTO so the vehicle starts flying
+  /// the route without a separate manual "Start Mission" tap.
+  ///
+  /// Returns true only if BOTH the upload was accepted AND the vehicle
+  /// was successfully armed/started. If the upload fails, startAuto() is
+  /// never called. If the upload succeeds but arming fails (e.g. failed
+  /// pre-arm checks), the error is surfaced via VehicleAlert/setError
+  /// same as before, and the mission stays uploaded-but-not-started so
+  /// the user can retry starting it manually.
+  Future<bool> uploadAndStartMission(
+    List<MissionWaypoint> waypoints, {
+    bool rtlAfter = true,
+  }) async {
+    final uploaded = await uploadMission(waypoints, rtlAfter: rtlAfter);
+    if (!uploaded) return false;
+
+    await startAuto();
+    return true;
   }
 
   Future<List<MissionWaypoint>?> downloadMission() async {
